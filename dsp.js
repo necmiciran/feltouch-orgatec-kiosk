@@ -281,6 +281,49 @@ const Acoustics = (() => {
   // long they ring: in the reverberant room they pile up into a metallic wash that buries
   // the speech; in the treated room they are short and speech stays clear.
   function mulberry(seed) { return () => { seed |= 0; seed = seed + 0x6d2b79f5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  // Tableware events, each a short, heavily damped impact (a few ms to tens of ms) – the *room* then makes them ring on.
+  //   plate  : ceramic clack – dull body knock + stiff mid modes, ~10 ms decay
+  //   tink   : metal cutlery on china – brighter, ~15–30 ms
+  //   glass  : rare, soft, a little longer
+  //   scrape : cutlery dragged over a plate – band-limited noise with a stick-slip rattle
+  function synthImpact(kind, sr, rnd) {
+    const dur = kind === "scrape" ? 0.22 : kind === "glass" ? 0.28 : 0.12, n = Math.floor(sr * dur);
+    const o = new Float32Array(n), TWO_PI = 2 * Math.PI;
+    const modes = [];
+    if (kind === "plate") {
+      const f = 900 + rnd() * 900;
+      modes.push([f * 0.42, 0.9, 0.007], [f, 1, 0.011], [f * 2.31 * (0.97 + rnd() * 0.06), 0.62, 0.008], [f * 3.87 * (0.97 + rnd() * 0.06), 0.4, 0.006], [f * 5.6 * (0.97 + rnd() * 0.06), 0.22, 0.004]);
+    } else if (kind === "tink") {
+      const f = 3000 + rnd() * 3200;
+      modes.push([f, 1, 0.014 + rnd() * 0.012], [f * 1.47 * (0.98 + rnd() * 0.04), 0.5, 0.01], [f * 2.76 * (0.98 + rnd() * 0.04), 0.3, 0.006], [f * 0.5, 0.35, 0.012]);
+    } else if (kind === "glass") {
+      const f = 2300 + rnd() * 1200;
+      modes.push([f, 1, 0.05 + rnd() * 0.03], [f * 2.32, 0.3, 0.03]);
+    }
+    if (kind !== "scrape") {
+      for (const [fr, a, tau] of modes) {
+        const ph = rnd() * TWO_PI;
+        for (let k = 0; k < n; k++) { const t = k / sr; o[k] += a * Math.sin(TWO_PI * fr * t + ph) * Math.exp(-t / tau); }
+      }
+      // contact noise: first 1–3 ms, band-limited by a one-pole high-pass so it clicks rather than hisses
+      const nn = Math.floor(sr * (0.0012 + rnd() * 0.0018)); let prev = 0;
+      for (let k = 0; k < nn; k++) { const w = rnd() * 2 - 1, hp = w - prev; prev = w; o[k] += hp * 1.1 * (1 - k / nn); }
+    } else {
+      let lp1 = 0, lp2 = 0, env = 0;
+      const rate = 70 + rnd() * 90, a1 = 0.55 + rnd() * 0.3;
+      for (let k = 0; k < n; k++) {
+        const t = k / sr, w = rnd() * 2 - 1;
+        lp1 += (w - lp1) * a1; lp2 += (lp1 - lp2) * 0.35;
+        const stick = 0.5 + 0.5 * Math.sin(TWO_PI * rate * t + 3 * Math.sin(TWO_PI * 11 * t));
+        env = Math.sin(Math.PI * Math.min(1, k / n)) * stick * stick;
+        o[k] = (lp1 - lp2) * 2.4 * env;
+      }
+    }
+    // tiny fade-out so the event never ends on a click
+    const f = Math.floor(sr * 0.004); for (let k = 0; k < f; k++) o[n - 1 - k] *= k / f;
+    return o;
+  }
+
   function addClinks(ctx, dry, cfg) {
     const sr = dry.sampleRate, n = dry.length, nch = dry.numberOfChannels;
     const out = ctx.createBuffer(nch, n, sr);
@@ -288,25 +331,25 @@ const Acoustics = (() => {
     const rnd = mulberry(cfg.seed || 20261014);
     const times = [];
     let t = 0.2;
+    const kindOf = () => { const r = rnd(); return r < 0.46 ? "plate" : r < 0.88 ? "tink" : r < 0.94 ? "scrape" : "glass"; };
     while (t < n / sr - 0.4) {
       t += -Math.log(1 - rnd()) / cfg.perSec;                           // Poisson spacing
-      const burst = rnd() < 0.28 ? 2 + Math.floor(rnd() * 3) : 1;       // plate clatter = quick cluster
+      const kind = kindOf();
+      const burst = (kind === "plate" || kind === "tink") && rnd() < 0.35 ? 2 + Math.floor(rnd() * 3) : 1;   // clatter = quick cluster
+      let when = t, amp0 = 0.4 + rnd() * 0.6;
+      const pan = rnd();
       for (let b = 0; b < burst; b++) {
-        const t0 = t + b * (0.03 + rnd() * 0.07), i0 = Math.floor(t0 * sr);
-        if (i0 >= n - sr * 0.4) continue;
-        times.push(t0);
-        const f0 = 1800 + rnd() * 3800, amp = 0.35 + rnd() * 0.65, pan = rnd();
-        const partials = [[1, 1, 0.07], [1.59, 0.6, 0.11], [2.14, 0.42, 0.075], [2.65, 0.28, 0.05]];
-        const len = Math.min(n - i0, Math.floor(sr * 0.5));
+        const kd = b === 0 ? kind : (rnd() < 0.6 ? kind : "tink");
+        const i0 = Math.floor(when * sr);
+        if (i0 >= n - sr * 0.4) break;
+        times.push(when);
+        const ev = synthImpact(kd, sr, rnd), amp = amp0 * (kd === "glass" ? 0.45 : 1) * (1 - b * 0.12);
+        const len = Math.min(ev.length, n - i0);
         for (let c = 0; c < nch; c++) {
           const g = nch === 1 ? 1 : (c === 0 ? 1 - pan : pan) * 1.4, L = layer[c];
-          for (let k = 0; k < len; k++) {
-            const tt = k / sr; let v = 0;
-            for (const [m, a, tau] of partials) v += a * Math.sin(2 * Math.PI * f0 * m * tt) * Math.exp(-tt / tau);
-            if (k < sr * 0.003) v += (rnd() * 2 - 1) * 1.2;             // the initial tick
-            L[i0 + k] += v * amp * g;
-          }
+          for (let k = 0; k < len; k++) L[i0 + k] += ev[k] * amp * g;
         }
+        when += 0.018 + rnd() * 0.07;
       }
     }
     let eL = 0, eD = 0;

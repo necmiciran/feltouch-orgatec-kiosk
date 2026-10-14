@@ -36,6 +36,12 @@
 
 * { box-sizing: border-box; }
 
+/* safe areas: status bar (clock / battery) on top, home indicator at the bottom (iPad, installed web app) */
+:root { --sat: env(safe-area-inset-top, 0px); --sab: env(safe-area-inset-bottom, 0px); }
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  :root { --sat: max(env(safe-area-inset-top, 0px), 26px); }
+}
+html { background: #272d32; }
 html, body {
   margin: 0; padding: 0;
   width: 100%; height: 100%;
@@ -51,7 +57,7 @@ html, body {
 button { font-family: inherit; color: inherit; cursor: pointer; }
 svg { display: block; }
 
-#app { position: relative; width: 100vw; height: 100vh; }
+#app { position: fixed; inset: 0; width: 100%; height: 100%; background: #272d32; }
 
 /* felt grain — evokes the material, very subtle */
 #app::after {
@@ -101,8 +107,8 @@ svg { display: block; }
   color: #fff;
   padding: 0 clamp(20px, 3.4vw, 44px);
 }
-.bar-top { height: 62px; }
-.bar-bottom { height: 36px; font-size: .68rem; letter-spacing: var(--track); color: rgba(255,255,255,.7); }
+.bar-top { height: calc(62px + var(--sat)); padding-top: var(--sat); }
+.bar-bottom { height: calc(36px + var(--sab)); padding-bottom: var(--sab); font-size: .68rem; letter-spacing: var(--track); color: rgba(255,255,255,.7); }
 .bar-title {
   margin: 0;
   font-size: .95rem; font-weight: 600;
@@ -145,7 +151,7 @@ svg { display: block; }
   overflow: hidden;
 }
 .idle-top {
-  position: absolute; top: 34px; left: 0; right: 0;
+  position: absolute; top: calc(34px + var(--sat)); left: 0; right: 0;
   font-size: .72rem; font-weight: 600; letter-spacing: .32em;
   color: var(--moss);
 }
@@ -175,7 +181,7 @@ svg { display: block; }
 .cta:active { transform: scale(.97); background: var(--custard); }
 .cta-sym { width: 14px; height: 18px; color: var(--ink); }
 .idle-foot {
-  position: absolute; bottom: 32px; left: 0; right: 0;
+  position: absolute; bottom: calc(32px + var(--sab)); left: 0; right: 0;
   display: flex; align-items: center; justify-content: center; gap: .8em;
   font-size: .68rem; letter-spacing: .28em; color: rgba(255,255,255,.55);
 }
@@ -474,7 +480,7 @@ svg { display: block; }
    Language picker (dropdown with 9 languages)
    ========================================================= */
 .lang-switch { position: relative; }
-.lang-idle { top: 22px; right: clamp(20px, 3.4vw, 44px); }
+.lang-idle { top: calc(22px + var(--sat)); right: clamp(20px, 3.4vw, 44px); }
 .lang-btn {
   display: inline-flex; align-items: center; gap: .6em;
   background: transparent; border: 1px solid rgba(255,255,255,.4); color: #fff;
