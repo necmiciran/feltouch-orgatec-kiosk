@@ -565,7 +565,8 @@
     function finish(o) {
       objs.sort((a, b) => b.key - a.key);
       const w = waves(o.zs || D * .45);
-      return `<svg viewBox="0 0 ${VB.w} ${VB.h}" preserveAspectRatio="xMidYMin slice" role="img" aria-hidden="true">
+      const head = `viewBox="0 0 ${VB.w} ${VB.h}" preserveAspectRatio="xMidYMin slice" aria-hidden="true"`;
+      return `<div class="scene"><svg ${head}>
         <defs>${defsStr}</defs>
         <g>${shell}</g>
         <g filter="url(#${id}blur)">${shadows.join("")}</g>
@@ -573,12 +574,10 @@
         <g class="ripples">${w.rip}</g>
         <g>${objs.map(x => x.svg).join("")}</g>
         <g>${lowGlow.join("")}</g>
-        <g class="echoes">${w.echo}</g>
-        <rect class="tint" width="${VB.w}" height="${VB.h}"/>
         <rect width="${VB.w}" height="${VB.h}" fill="url(#${id}vig)"/>
         <rect width="${VB.w}" height="${VB.h}" fill="url(#${id}vig2)"/>
-        <rect width="${VB.w}" height="${VB.h}" fill="url(#tx-film)" opacity=".5" style="mix-blend-mode:overlay"/>
-      </svg>`;
+        <rect width="${VB.w}" height="${VB.h}" fill="url(#tx-film)" opacity=".16"/>
+      </svg><svg class="scene-fx" ${head}><g class="echoes">${w.echo}</g><rect class="tint" width="${VB.w}" height="${VB.h}"/></svg></div>`;
     }
 
     // Draw the Feltouch products of this scenario (kind / look / surface / quantity come from calc.js)

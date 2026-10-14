@@ -56,7 +56,7 @@ const Fon = (() => {
   function build() {
     svg.innerHTML = "";
     groups = BUNDLES.map((b, gi) => {
-      const base = resample(b.pts, 36);
+      const base = resample(b.pts, 48);
       const normals = base.map((_, i) => norm(base, i));
       const lines = [];
       for (let i = 0; i < b.n; i++) {
@@ -89,10 +89,14 @@ const Fon = (() => {
     });
   }
 
+  // ~20 fps is plenty for slow contour lines, and keeps the tablet cool; pauses entirely while the page is hidden
+  let last = 0;
   function loop(now) {
     if (!running) return;
-    draw((now - t0) / 1000);
     raf = requestAnimationFrame(loop);
+    if (document.hidden || now - last < 48) return;
+    last = now;
+    draw((now - t0) / 1000);
   }
 
   function probe(url, ok) {
