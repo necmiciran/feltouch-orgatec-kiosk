@@ -37,9 +37,13 @@
 * { box-sizing: border-box; }
 
 /* safe areas: status bar (clock / battery) on top, home indicator at the bottom (iPad, installed web app) */
-:root { --sat: env(safe-area-inset-top, 0px); --sab: env(safe-area-inset-bottom, 0px); }
+:root {
+  --sat: env(safe-area-inset-top, 0px); --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px); --sar: env(safe-area-inset-right, 0px);
+  --gut: clamp(20px, 3.4vw, 44px);
+}
 @media (display-mode: standalone), (display-mode: fullscreen) {
-  :root { --sat: max(env(safe-area-inset-top, 0px), 26px); }
+  :root { --sat: max(env(safe-area-inset-top, 0px), 26px); --sab: max(env(safe-area-inset-bottom, 0px), 14px); }
 }
 html { background: #272d32; }
 html, body {
@@ -57,7 +61,7 @@ html, body {
 button { font-family: inherit; color: inherit; cursor: pointer; }
 svg { display: block; }
 
-#app { position: fixed; inset: 0; width: 100%; height: 100%; background: #272d32; }
+#app { position: fixed; inset: 0; width: 100%; height: 100%; background: var(--paper); }
 
 /* felt grain — evokes the material, very subtle */
 #app::after {
@@ -105,7 +109,7 @@ svg { display: block; }
   display: flex; align-items: center; justify-content: space-between;
   background: var(--ink);
   color: #fff;
-  padding: 0 clamp(20px, 3.4vw, 44px);
+  padding: 0 calc(var(--gut) + var(--sar)) 0 calc(var(--gut) + var(--sal));
 }
 .bar-top { height: calc(62px + var(--sat)); padding-top: var(--sat); }
 .bar-bottom { height: calc(36px + var(--sab)); padding-bottom: var(--sab); font-size: .68rem; letter-spacing: var(--track); color: rgba(255,255,255,.7); }
@@ -218,7 +222,7 @@ svg { display: block; }
   flex: 1; min-height: 0;
   display: flex; flex-direction: column;
   gap: clamp(12px, 2vh, 20px);
-  padding: clamp(14px, 2.4vh, 28px) clamp(20px, 3.4vw, 44px) clamp(12px, 2vh, 22px);
+  padding: clamp(14px, 2.4vh, 28px) calc(var(--gut) + var(--sar)) clamp(12px, 2vh, 22px) calc(var(--gut) + var(--sal));
 }
 /* compact intro: title left, description right */
 .select-intro { display: flex; align-items: flex-end; justify-content: space-between; gap: 2rem; flex: 0 0 auto; }
@@ -284,7 +288,7 @@ svg { display: block; }
    ========================================================= */
 .compare-body {
   flex: 1; min-height: 0; display: flex;
-  padding: clamp(14px, 2.4vh, 26px) clamp(20px, 3.4vw, 44px);
+  padding: clamp(14px, 2.4vh, 26px) calc(var(--gut) + var(--sar)) clamp(14px, 2.4vh, 26px) calc(var(--gut) + var(--sal));
 }
 .compare-grid {
   flex: 1; width: 100%; min-height: 0;
@@ -431,8 +435,12 @@ svg { display: block; }
 /* =========================================================
    Narrow / portrait tablet
    ========================================================= */
-@media (max-width: 880px) {
-  .compare-grid { grid-template-columns: 1fr; grid-template-rows: minmax(0, 30%) 1fr; }
+@media (max-width: 880px), (orientation: portrait) {
+  .compare-grid { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); gap: 14px; }
+  .room-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 14px; row-gap: 6px; align-content: start; }
+  .room-panel .room-visual { grid-column: 1; grid-row: 1; flex: none; min-height: 0; height: auto; aspect-ratio: 5 / 4; }
+  .room-panel .room-dims { grid-column: 1; grid-row: 2; }
+  .room-panel .solution { grid-column: 2; grid-row: 1 / span 2; }
   .room-facts { display: none; }
   .bar-title { font-size: .78rem; letter-spacing: .18em; }
   .bar-logo { height: 14px; }
@@ -480,7 +488,7 @@ svg { display: block; }
    Language picker (dropdown with 9 languages)
    ========================================================= */
 .lang-switch { position: relative; }
-.lang-idle { top: calc(22px + var(--sat)); right: clamp(20px, 3.4vw, 44px); }
+.lang-idle { top: calc(22px + var(--sat)); right: calc(var(--gut) + var(--sar)); }
 .lang-btn {
   display: inline-flex; align-items: center; gap: .6em;
   background: transparent; border: 1px solid rgba(255,255,255,.4); color: #fff;
