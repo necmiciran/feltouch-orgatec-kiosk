@@ -316,16 +316,48 @@ svg { display: block; }
 .baffle, .slat { opacity: 0; transition: transform 1s var(--ease) var(--d, 0ms), opacity .6s ease var(--d, 0ms); }
 .baffle { transform: translateY(-46px); transition: transform 1.1s cubic-bezier(.34,1.4,.5,1) var(--d, 0ms), opacity .6s ease var(--d, 0ms); }
 .scene { position: relative; width: 100%; height: 100%; }
-.scene-fx { position: absolute; inset: 0; pointer-events: none; }
-.sway, .ppl { transform-box: fill-box; transform-origin: 50% 0; }
-.ppl { transform-origin: 50% 100%; }
-/* life in the room only while a recording plays – and stepped (≈3 repaints/s) to keep the tablet cool */
-.is-playing.state-after .sway { animation: swayAir 6s steps(14) var(--sd, 0s) infinite; }
-@keyframes swayAir { 0%,100% { transform: rotate(-.35deg); } 50% { transform: rotate(.35deg); } }
-.is-playing .ppl { animation: pplBob 4.2s steps(8) var(--pd, 0s) infinite; }
-@keyframes pplBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-.8px); } }
-.is-playing .ppl.walk { animation: pplBob 4.2s steps(8) var(--pd, 0s) infinite, pplWalk var(--wt, 18s) steps(60) var(--pd, 0s) infinite alternate; }
-@keyframes pplWalk { from { translate: calc(var(--wx, 20px) * -1) 0; } to { translate: var(--wx, 20px) 0; } }
+.scene > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.scene.live > svg { pointer-events: none; }
+.sc-actors, .sc-fx, .sc-hang { overflow: hidden; }
+
+/* products: wall panels / flush tiles cross-fade (GPU opacity on a ready-made layer); hanging baffles drop in */
+.sc-b { opacity: 0; transition: opacity 1.1s ease; will-change: opacity; }
+.state-after .sc-b { opacity: 1; }
+.sc-b .slat { opacity: 1; transform: none; transition: none; }
+
+/* ---- people: every animated part is a small transform-only animation (no filters, no big repaints) ---- */
+.sc-actors { will-change: transform; }
+.act-mv { animation: actMove var(--T, 12s) linear var(--dl, 0s) infinite; }
+@keyframes actMove { from { transform: translateX(var(--x0)); } to { transform: translateX(var(--x1)); } }
+
+/* walking cycle (profile figure): legs swing, arms counter-swing, body rises twice per stride */
+.w-leg, .w-arm, .w-lift, .w-bob, .w-sway, .w-head { transform-box: fill-box; }
+.w-leg  { transform-origin: 50% 0; animation: gaitLeg var(--gp, 1.1s) ease-in-out calc(var(--gp, 1.1s) * var(--ph, 0) * -1) infinite; }
+.w-arm  { transform-origin: 50% 0; animation: gaitArm var(--gp, 1.1s) ease-in-out calc(var(--gp, 1.1s) * var(--ph, 0) * -1) infinite; }
+.w-lift { transform-origin: 50% 0; animation: gaitLift var(--gp, 1.1s) ease-in-out calc(var(--gp, 1.1s) * var(--ph, 0) * -1) infinite; }
+.w-bob  { animation: gaitBob calc(var(--gp, 1.1s) / 2) ease-in-out infinite; }
+.w-sway { transform-origin: 50% 100%; animation: gaitSway var(--gp, 1.1s) ease-in-out infinite; }
+.w-head { transform-origin: 50% 100%; animation: gaitHead calc(var(--gp, 1.1s) / 2) ease-in-out infinite; }
+@keyframes gaitLeg  { 0%, 100% { transform: rotate(-27deg); } 50% { transform: rotate(27deg); } }
+@keyframes gaitArm  { 0%, 100% { transform: rotate(-22deg); } 50% { transform: rotate(22deg); } }
+@keyframes gaitLift { 0%, 40%, 100% { transform: scaleY(1); } 78% { transform: scaleY(.93); } }
+@keyframes gaitBob  { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-.04px); } }
+@keyframes gaitSway { 0%, 100% { transform: rotate(-1.3deg); } 50% { transform: rotate(1.3deg); } }
+@keyframes gaitHead { 0%, 100% { transform: rotate(.6deg); } 50% { transform: rotate(-.6deg); } }
+
+/* standing people: breathing, weight shift, head glances, an occasional hand gesture */
+.a-fig, .a-upper, .a-head, .a-arm { transform-box: fill-box; }
+.a-fig   { transform-origin: 50% 100%; animation: aShift 8s ease-in-out var(--ad, 0s) infinite; }
+.a-upper { transform-origin: 50% 100%; animation: aBreathe 4.6s ease-in-out var(--ad, 0s) infinite; }
+.a-head  { transform-origin: 50% 100%; animation: aHead 11s ease-in-out var(--ad, 0s) infinite; }
+.a-arm   { transform-origin: var(--ox, 50%) 0; }
+.a-armQ  { animation: aArmRest 6.5s ease-in-out var(--ad, 0s) infinite; }
+.a-armG  { animation: aGesture 9s ease-in-out var(--ad, 0s) infinite; }
+@keyframes aShift   { 0%, 100% { transform: rotate(-.7deg) translateX(-.012px); } 50% { transform: rotate(.7deg) translateX(.012px); } }
+@keyframes aBreathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.012, 1.011); } }
+@keyframes aHead    { 0%, 100% { transform: rotate(-2deg); } 28% { transform: rotate(4deg); } 46% { transform: rotate(3deg); } 70% { transform: rotate(-5deg); } 86% { transform: rotate(-3deg); } }
+@keyframes aArmRest { 0%, 100% { transform: rotate(2deg); } 50% { transform: rotate(-2.5deg); } }
+@keyframes aGesture { 0%, 50%, 100% { transform: rotate(1deg); } 58% { transform: rotate(-34deg); } 64% { transform: rotate(-24deg); } 72% { transform: rotate(-38deg); } 80% { transform: rotate(-20deg); } 92% { transform: rotate(1deg); } }
 .slat   { transform: translateX(0) scale(.96); transform-box: fill-box; transform-origin: center; }
 .state-after .baffle, .state-after .slat { opacity: 1; transform: none; }
 .tint { fill: var(--brick); opacity: .10; transition: opacity 1s ease; }
@@ -333,7 +365,7 @@ svg { display: block; }
 .ripple { fill: none; stroke: var(--brick); stroke-width: 2.4; opacity: 0; transition: opacity .7s ease; transform-box: fill-box; transform-origin: center; }
 .echo { fill: none; stroke: var(--brick); stroke-width: 1.8; stroke-dasharray: 5 7; opacity: 0; transition: opacity .7s ease; }
 .state-after .ripple, .state-after .echo { opacity: 0; }
-.state-before.is-playing .ripple { animation: ripple2 2.4s steps(12) infinite; }
+.state-before.is-playing .ripple { animation: ripple2 2.4s ease-out infinite; }
 .state-before.is-playing .r2 { animation-delay: .25s; }
 .state-before.is-playing .r3 { animation-delay: .5s; }
 .state-before.is-playing .r4 { animation-delay: .75s; }
@@ -449,7 +481,7 @@ svg { display: block; }
   .bar-logo { height: 14px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .sway, .ppl, .ppl.walk { animation: none !important; }
+  .act-mv, .w-leg, .w-arm, .w-lift, .w-bob, .w-sway, .w-head, .a-fig, .a-upper, .a-head, .a-arm { animation: none !important; }
   .idle-bars i, .waves .arc, .tap-btn.playing .ic-bars rect { animation: none !important; }
 }
 

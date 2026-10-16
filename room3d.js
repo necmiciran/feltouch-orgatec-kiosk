@@ -102,22 +102,23 @@
      ===================================================================== */
   function createScene(p) {
     ensureDefs();
-    const { W, H, D, f, cb, eye } = p;
+    const { W, H, D, f, cb, eye, live } = p;
     const hw = W / 2;
     const id = `rs${++UID}`;
     const rnd = mulberry(p.seed || 7);
-    const objs = [], shadows = [], contact = [], lowGlow = [];
+    const objs = [], shadows = [], contact = [], lowGlow = [], actors = [];
     let shell = "", defsStr = "";
 
     const P = (x, y, z) => [VB.cx + f * x / (z + cb), VB.cy - f * (y - eye) / (z + cb)];
     const pt = q => { const [X, Y] = P(q[0], q[1], q[2]); return `${X.toFixed(1)},${Y.toFixed(1)}`; };
     const poly = (pts, fill, extra = "") => `<polygon points="${pts.map(pt).join(" ")}" fill="${fill}" ${extra}/>`;
     const sc = z => f / (z + cb);
+    // layers (live mode): base = static room, prod = wall/ceiling-flush products (cross-fade), hang = hanging baffles / clouds
     const add = (key, svg, o = {}) => {
-      if (o.cls) {
-        const sway = o.sway ? `<g class="sway" style="--sd:${(rnd() * 5).toFixed(2)}s">${svg}</g>` : svg;
-        objs.push({ key, svg: `<g class="${o.cls}" style="--d:${o.delay || 0}ms">${sway}</g>` });
-      } else objs.push({ key, svg });
+      let layer = "base";
+      if (live) layer = o.layer || (o.cls === "baffle" ? "hang" : o.cls ? "prod" : "base");
+      if (o.cls) svg = `<g class="${o.cls}" style="--d:${o.delay || 0}ms">${svg}</g>`;
+      objs.push({ key, svg, layer });
     };
 
     /* ---------- faces with material + light overlays ---------- */
@@ -186,6 +187,7 @@
       const skin = o.skin || pick(SKIN, 3), hair = o.hair || pick(HAIR, 4);
       const female = o.g ? o.g === "f" : (r % 3 === 0);
       const back = !!o.back, seated = !!o.seated, pose = o.pose || "stand";
+      const act = live && !!o.anim && !seated;           // animated 'actor' (drawn in its own layer)
       const big = m > 72 && !back;
       const part = (d, fill, ov = "sh-h") => `<path d="${d}" fill="${fill}"/>` + (ov ? `<path d="${d}" fill="url(#${ov})"/>` : "");
       const sleeveShort = (r % 4) === 0;
@@ -196,25 +198,28 @@
       const upper = () => {
         let u = "";
         const sh = female ? .93 : 1;
-        const arm = (side, ang) => {
+        const arm = (side, ang, cls) => {
           const sx = side * .215 * sh, base = `translate(${sx},-1.5) rotate(${ang})`;
           const slv = sleeveShort
             ? `M${-.03 * side},0 C${.05 * side},.04 ${.08 * side},.2 ${.075 * side},.3 L${.0 * side},.3 C${-.01 * side},.18 ${-.03 * side},.08 ${-.03 * side},0 Z`
             : `M${-.03 * side},0 C${.06 * side},.05 ${.09 * side},.3 ${.085 * side},.55 L${.0 * side},.55 C${-.005 * side},.3 ${-.03 * side},.1 ${-.03 * side},0 Z`;
           const fore = sleeveShort ? `M${.0 * side},.3 L${.075 * side},.3 L${.08 * side},.56 L${.005 * side},.56 Z` : "";
           const hand = `<ellipse cx="${.044 * side}" cy=".6" rx=".034" ry=".05" fill="${skin}"/>`;
-          return `<g transform="${base}">${fore ? part(fore, skin) : ""}${part(slv, top)}${hand}</g>`;
+          const inner = `${fore ? part(fore, skin) : ""}${part(slv, top)}${hand}`;
+          if (act) return `<g transform="translate(${sx},-1.5)"><g class="a-arm ${cls || ""}" style="--ox:${side > 0 ? 26 : 74}%">${inner}</g></g>`;
+          return `<g transform="${base}">${inner}</g>`;
         };
         const sw = pose === "walk" ? (o.step || 1) * 11 : 0;
         if (pose === "phone") {
-          u += arm(-1, 2);
+          u += arm(-1, 2, "a-armQ");
           u += `<path d="M${.2 * sh},-1.5 L.30,-1.3 L.09,-1.66" stroke="${top}" stroke-width=".085" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx=".085" cy="-1.68" r=".034" fill="${skin}"/><rect x=".07" y="-1.74" width=".03" height=".085" rx=".008" fill="#16181b"/>`;
         } else if (seated && !back) {
           u += `<path d="M${-.2 * sh},-1.5 L-.27,-1.18 L-.1,-1.07" stroke="${top}" stroke-width=".085" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
           u += `<path d="M${.2 * sh},-1.5 L.27,-1.18 L.1,-1.07" stroke="${top}" stroke-width=".085" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
           u += `<circle cx="-.1" cy="-1.06" r=".036" fill="${skin}"/><circle cx=".1" cy="-1.06" r=".036" fill="${skin}"/>`;
         } else {
-          u += arm(-1, -sw); u += arm(1, sw);
+          const gs = r % 2 ? 1 : -1;
+          u += arm(-1, -sw, gs < 0 ? "a-armG" : "a-armQ"); u += arm(1, sw, gs > 0 ? "a-armG" : "a-armQ");
         }
         const tw = female ? .195 : .215;
         const torso = `M${-tw},-1.49 C${-tw},-1.56 -.15,-1.6 0,-1.6 C.15,-1.6 ${tw},-1.56 ${tw},-1.49 L${tw * .88},-.97 L${-tw * .88},-.97 Z`;
@@ -222,17 +227,19 @@
         u += `<path d="M${-tw * .5},-1.5 C${-tw * .2},-1.2 ${-tw * .3},-1.05 ${-tw * .4},-.98" stroke="rgba(0,0,0,.16)" stroke-width=".012" fill="none"/>`;
         if (!back) u += `<path d="M-.04,-1.6 L0,-1.53 L.04,-1.6 Z" fill="${skin}"/>`;
         u += `<path d="M-.036,-1.63 L.036,-1.63 L.042,-1.55 L-.042,-1.55 Z" fill="${skin}"/><path d="M-.036,-1.63 L.036,-1.63 L.042,-1.55 L-.042,-1.55 Z" fill="rgba(0,0,0,.18)"/>`;
+        let hd = "";
         if (back) {
-          u += `<ellipse cx="0" cy="-1.7" rx=".082" ry=".104" fill="${hair}"/>`;
-          if (female) u += `<path d="M-.085,-1.7 C-.12,-1.6 -.1,-1.46 -.06,-1.44 L.06,-1.44 C.1,-1.46 .12,-1.6 .085,-1.7 Z" fill="${hair}"/>`;
-          u += `<ellipse cx="-.02" cy="-1.74" rx=".03" ry=".05" fill="rgba(255,255,255,.1)"/>`;
+          hd += `<ellipse cx="0" cy="-1.7" rx=".082" ry=".104" fill="${hair}"/>`;
+          if (female) hd += `<path d="M-.085,-1.7 C-.12,-1.6 -.1,-1.46 -.06,-1.44 L.06,-1.44 C.1,-1.46 .12,-1.6 .085,-1.7 Z" fill="${hair}"/>`;
+          hd += `<ellipse cx="-.02" cy="-1.74" rx=".03" ry=".05" fill="rgba(255,255,255,.1)"/>`;
         } else {
-          u += part(`M-.078,-1.7 C-.078,-1.77 .078,-1.77 .078,-1.7 C.078,-1.62 .045,-1.6 0,-1.6 C-.045,-1.6 -.078,-1.62 -.078,-1.7 Z`, skin, "sh-h");
-          u += `<ellipse cx="-.08" cy="-1.69" rx=".012" ry=".024" fill="${skin}"/><ellipse cx=".08" cy="-1.69" rx=".012" ry=".024" fill="${skin}"/>`;
-          u += `<path d="M-.088,-1.69 C-.1,-1.83 .1,-1.83 .088,-1.69 C.075,-1.76 .035,-1.775 0,-1.77 C-.035,-1.775 -.075,-1.76 -.088,-1.69 Z" fill="${hair}"/>`;
-          if (female) u += `<path d="M-.088,-1.69 C-.12,-1.6 -.1,-1.5 -.07,-1.48 L-.055,-1.68 Z" fill="${hair}"/><path d="M.088,-1.69 C.12,-1.6 .1,-1.5 .07,-1.48 L.055,-1.68 Z" fill="${hair}"/>`;
-          if (big) u += `<ellipse cx="-.03" cy="-1.7" rx=".0095" ry=".0065" fill="#1d1a19"/><ellipse cx=".03" cy="-1.7" rx=".0095" ry=".0065" fill="#1d1a19"/><path d="M-.022,-1.645 Q0,-1.635 .022,-1.645" stroke="rgba(120,50,45,.7)" stroke-width=".006" fill="none"/>`;
+          hd += part(`M-.078,-1.7 C-.078,-1.77 .078,-1.77 .078,-1.7 C.078,-1.62 .045,-1.6 0,-1.6 C-.045,-1.6 -.078,-1.62 -.078,-1.7 Z`, skin, "sh-h");
+          hd += `<ellipse cx="-.08" cy="-1.69" rx=".012" ry=".024" fill="${skin}"/><ellipse cx=".08" cy="-1.69" rx=".012" ry=".024" fill="${skin}"/>`;
+          hd += `<path d="M-.088,-1.69 C-.1,-1.83 .1,-1.83 .088,-1.69 C.075,-1.76 .035,-1.775 0,-1.77 C-.035,-1.775 -.075,-1.76 -.088,-1.69 Z" fill="${hair}"/>`;
+          if (female) hd += `<path d="M-.088,-1.69 C-.12,-1.6 -.1,-1.5 -.07,-1.48 L-.055,-1.68 Z" fill="${hair}"/><path d="M.088,-1.69 C.12,-1.6 .1,-1.5 .07,-1.48 L.055,-1.68 Z" fill="${hair}"/>`;
+          if (big) hd += `<ellipse cx="-.03" cy="-1.7" rx=".0095" ry=".0065" fill="#1d1a19"/><ellipse cx=".03" cy="-1.7" rx=".0095" ry=".0065" fill="#1d1a19"/><path d="M-.022,-1.645 Q0,-1.635 .022,-1.645" stroke="rgba(120,50,45,.7)" stroke-width=".006" fill="none"/>`;
         }
+        u += act ? `<g class="a-head">${hd}</g>` : hd;
         return u;
       };
 
@@ -256,16 +263,64 @@
           g += `<g transform="rotate(${-walk},${-hx},${hy})">${part(legL, bottom)}${shoe(-.095, -walk)}</g>`;
           g += `<g transform="rotate(${walk},${hx},${hy})">${part(legR, bottom)}${shoe(.095, walk)}</g>`;
         }
-        g += upper();
+        let up = upper();
         if (pose === "carry" || o.bag) {
-          g += `<path d="M-.2,-1.5 L-.34,-.9" stroke="#222" stroke-width=".014" fill="none"/><rect x="-.44" y="-.95" width=".2" height=".26" rx=".025" fill="${o.bag || "#6a4a35"}"/><rect x="-.44" y="-.95" width=".2" height=".26" rx=".025" fill="url(#sh-h)"/>`;
+          up += `<path d="M-.2,-1.5 L-.34,-.9" stroke="#222" stroke-width=".014" fill="none"/><rect x="-.44" y="-.95" width=".2" height=".26" rx=".025" fill="${o.bag || "#6a4a35"}"/><rect x="-.44" y="-.95" width=".2" height=".26" rx=".025" fill="url(#sh-h)"/>`;
         }
+        g += act ? `<g class="a-upper">${up}</g>` : up;
       }
       const flip = (r % 2 && !back) ? "scale(-1,1)" : "";
-      const cls = `ppl${o.walk ? " walk" : ""}`;
-      const style = `--pd:${(rnd() * 4).toFixed(2)}s;${o.walk ? `--wx:${o.walk}px;--wt:${(14 + rnd() * 10).toFixed(1)}s;` : ""}`;
+      if (act) {
+        // idle life (breathing, weight shift, head turns, a gesture) – split the body so CSS can move the parts
+        actors.push({ key: z, svg: `<g transform="translate(${bx.toFixed(1)},${by.toFixed(1)}) scale(${m.toFixed(2)})"><g style="--ad:${(-rnd() * 9).toFixed(2)}s"><g transform="${flip}"><g class="a-fig">${g}</g></g></g></g>` });
+        return;
+      }
       add(z + cb + (o.bias != null ? o.bias : .25),
-        `<g class="${cls}" style="${style}"><g transform="translate(${bx.toFixed(1)},${by.toFixed(1)}) scale(${m.toFixed(2)})"><g transform="${flip}">${g}</g></g></g>`);
+        `<g transform="translate(${bx.toFixed(1)},${by.toFixed(1)}) scale(${m.toFixed(2)})"><g transform="${flip}">${g}</g></g>`);
+    }
+
+    // Walking figure in profile (facing right; dir = -1 mirrors it). Live mode: crosses the room on its own path, with a real gait cycle.
+    function walker(z, o = {}) {
+      const r = o.seed != null ? o.seed : Math.floor(rnd() * 1000);
+      const pick = (arr, k) => arr[(r * 7 + k * 13) % arr.length];
+      const top = o.top || pick(TOPS, 1), bottom = o.bottom || pick(BOTTOMS, 2), skin = o.skin || pick(SKIN, 3), hair = o.hair || pick(HAIR, 4);
+      const female = o.g ? o.g === "f" : (r % 3 === 0), dir = o.dir || 1, speed = o.speed || 1.3;
+      const [bx, by] = P(o.x != null ? o.x : 0, 0, z), m = sc(z) * (o.s || 1);
+      const st = !live;                                   // static pose (thumbnails)
+      const part = (d, fill, ov = "sh-h") => `<path d="${d}" fill="${fill}"/>` + (ov ? `<path d="${d}" fill="url(#${ov})"/>` : "");
+      const legP = "M-.075,-.98 C-.09,-.7 -.075,-.4 -.065,-.09 L.065,-.09 C.065,-.4 .085,-.7 .095,-.98 Z";
+      const shoeP = "M-.075,-.09 L.15,-.09 C.185,-.08 .185,-.025 .14,-.02 L-.075,-.02 Z";
+      const shortS = (r % 4) === 0;
+      const armP = shortS ? "M-.05,0 C.035,.04 .055,.18 .05,.3 L-.035,.3 C-.045,.18 -.055,.08 -.05,0 Z" : "M-.05,0 C.035,.05 .055,.3 .05,.55 L-.035,.55 C-.045,.3 -.055,.1 -.05,0 Z";
+      const foreP = "M-.035,.3 L.05,.3 L.052,.56 L-.03,.56 Z";
+      const kid = (cls, ph, ang, inner, lift) => st
+        ? `<g style="transform:rotate(${ang}deg);transform-box:fill-box;transform-origin:50% 0">${inner}</g>`
+        : `<g class="${cls}" style="--ph:${ph}">${lift ? `<g class="w-lift" style="--ph:${ph}">${inner}</g>` : inner}</g>`;
+      const leg = (far, ph, ang) => kid("w-leg", ph, ang, part(legP, far ? shade(bottom, .68) : bottom) + `<path d="${shoeP}" fill="${far ? "#101113" : "#1b1b1d"}"/>`, true);
+      const armSide = (far, ph, ang) => {
+        const tp = far ? shade(top, .72) : top, sk = far ? shade(skin, .8) : skin;
+        const inner = (shortS ? part(foreP, sk) : "") + part(armP, tp) + `<ellipse cx=".008" cy=".6" rx=".034" ry=".05" fill="${sk}"/>`;
+        return `<g transform="translate(-.005,-1.5)">${kid("w-arm", ph, ang, inner, false)}</g>`;
+      };
+      const torsoP = "M-.1,-1.52 C-.14,-1.5 -.15,-1.2 -.125,-.97 L.115,-.97 C.15,-1.2 .14,-1.5 .09,-1.56 C.06,-1.6 -.05,-1.6 -.1,-1.52 Z";
+      let head = part("M-.092,-1.7 C-.092,-1.8 .09,-1.8 .095,-1.7 C.098,-1.63 .06,-1.6 0,-1.6 C-.06,-1.6 -.092,-1.63 -.092,-1.7 Z", skin);
+      head += `<path d="M.092,-1.69 L.13,-1.665 L.095,-1.65 Z" fill="${skin}"/>`;
+      head += `<path d="M-.1,-1.7 C-.105,-1.83 .085,-1.84 .097,-1.73 C.05,-1.76 -.02,-1.75 -.045,-1.68 C-.055,-1.63 -.075,-1.62 -.1,-1.66 Z" fill="${hair}"/>`;
+      if (female) head += `<path d="M-.09,-1.74 C-.17,-1.7 -.18,-1.54 -.12,-1.46 C-.1,-1.54 -.09,-1.62 -.075,-1.68 Z" fill="${hair}"/>`;
+      head += `<ellipse cx=".05" cy="-1.7" rx=".009" ry=".0065" fill="#1d1a19"/>`;
+      const neck = `<path d="M-.03,-1.63 L.045,-1.63 L.05,-1.55 L-.04,-1.55 Z" fill="${skin}"/><path d="M-.03,-1.63 L.045,-1.63 L.05,-1.55 L-.04,-1.55 Z" fill="rgba(0,0,0,.16)"/>`;
+      let fig = `<ellipse cx="0" cy="0" rx=".34" ry=".09" fill="url(#shadow-r)"/>`;
+      fig += leg(true, .5, 14) + leg(false, 0, -14);
+      let up = armSide(true, 0, 12) + part(torsoP, top) + neck + `<g class="${st ? "" : "w-head"}">${head}</g>` + armSide(false, .5, -12);
+      fig += `<g transform="rotate(3,0,-.97)"><g class="${st ? "" : "w-sway"}">${up}</g></g>`;
+      if (st) {
+        add(z + cb + .25, `<g transform="translate(${bx.toFixed(1)},${by.toFixed(1)}) scale(${m.toFixed(2)})"><g transform="scale(${dir},1)">${fig}</g></g>`);
+        return;
+      }
+      const dist = VB.w + 200, T = dist / (speed * m), gp = 1.55 / speed;
+      const x0 = (dir > 0 ? -100 : VB.w + 100) - bx, x1 = (dir > 0 ? VB.w + 100 : -100) - bx;
+      const dl = o.phase != null ? -o.phase * T : -rnd() * T;
+      actors.push({ key: z, svg: `<g class="act-mv" style="--x0:${x0.toFixed(1)}px;--x1:${x1.toFixed(1)}px;--T:${T.toFixed(2)}s;--dl:${dl.toFixed(2)}s;--gp:${gp.toFixed(3)}s"><g transform="translate(${bx.toFixed(1)},${by.toFixed(1)}) scale(${m.toFixed(2)})"><g transform="scale(${dir},1)"><g class="w-bob">${fig}</g></g></g></g>` });
     }
 
     /* ---------- furniture & props ---------- */
@@ -396,7 +451,7 @@
       let out = "", k = 0;
       for (let r = 0; r < rUsed; r++) for (let c = 0; c < cUsed && k < n; c++, k++)
         out += module_(m, uStart + c * (s + .02), vStart + r * (s + .02), s, feltCol(r + colOff), 260 + (r * cUsed + c) * 28);
-      add(side === "B" ? D + cb - .6 : zone.u1 + cb - .6, out);
+      add(side === "B" ? D + cb - .6 : zone.u1 + cb - .6, out, { layer: "prod" });
     }
 
     // slab panels (SENSE FLUX FLAT, DECOSOUND…): large felt boards with a fine routed pattern
@@ -416,7 +471,7 @@
         g += poly(q, "none", `stroke="rgba(255,255,255,.2)" stroke-width=".5"`);
         out += `<g class="slat" style="--d:${260 + i * 80}ms">${g}</g>`;
       }
-      add(side === "B" ? D + cb - .6 : zone.u1 + cb - .6, out);
+      add(side === "B" ? D + cb - .6 : zone.u1 + cb - .6, out, { layer: "prod" });
     }
 
     // ceiling-mounted flat panels (flush)
@@ -429,7 +484,7 @@
       const cu = Math.min(cols, Math.ceil(Math.sqrt(n * zw / zd))), rr = Math.min(rows, Math.ceil(n / cu));
       const x0 = z.x0 + (zw - cu * (s + .02)) / 2, z0 = z.z0 + (zd - rr * (s + .02)) / 2;
       for (let r = 0; r < rr; r++) for (let c = 0; c < cu && k < n; c++, k++) out += module_(m, x0 + c * (s + .02), z0 + r * (s + .02), s, feltCol(k % 3 + colOff), 80 + k * 22);
-      add(zd + cb, out);
+      add(zd + cb, out, { layer: "prod" });
     }
 
     // spherical bowls on a wall (SPARKLE)
@@ -446,7 +501,7 @@
         out += poly(ring, shade(col, .85)) + poly(ring, "url(#tx-felt)") + poly(ring, "url(#sph)");
         out += poly(inner, shade(col, .78)) + poly(inner, "url(#sph)");
       }
-      add(zone.u1 + cb - .6, `<g class="slat" style="--d:300ms">${out}</g>`);
+      add(zone.u1 + cb - .6, `<g class="slat" style="--d:300ms">${out}</g>`, { layer: "prod" });
     }
 
     /* ---------- shell: walls, floor, ceiling, light ---------- */
@@ -566,18 +621,25 @@
       objs.sort((a, b) => b.key - a.key);
       const w = waves(o.zs || D * .45);
       const head = `viewBox="0 0 ${VB.w} ${VB.h}" preserveAspectRatio="xMidYMin slice" aria-hidden="true"`;
-      return `<div class="scene"><svg ${head}>
-        <defs>${defsStr}</defs>
-        <g>${shell}</g>
-        <g filter="url(#${id}blur)">${shadows.join("")}</g>
-        <g filter="url(#${id}blur2)">${contact.join("")}</g>
-        <g class="ripples">${w.rip}</g>
-        <g>${objs.map(x => x.svg).join("")}</g>
-        <g>${lowGlow.join("")}</g>
+      const tail = `<g>${lowGlow.join("")}</g>
         <rect width="${VB.w}" height="${VB.h}" fill="url(#${id}vig)"/>
         <rect width="${VB.w}" height="${VB.h}" fill="url(#${id}vig2)"/>
-        <rect width="${VB.w}" height="${VB.h}" fill="url(#tx-film)" opacity=".16"/>
-      </svg><svg class="scene-fx" ${head}><g class="echoes">${w.echo}</g><rect class="tint" width="${VB.w}" height="${VB.h}"/></svg></div>`;
+        <rect width="${VB.w}" height="${VB.h}" fill="url(#tx-film)" opacity=".16"/>`;
+      const room = (layers) => `<g>${shell}</g><g filter="url(#${id}blur)">${shadows.join("")}</g><g filter="url(#${id}blur2)">${contact.join("")}</g>` +
+        objs.filter(x => layers.includes(x.layer)).map(x => x.svg).join("");
+      if (!live) {
+        // thumbnails: one static svg, products already in place (the CSS state decides how they look)
+        const rip = `<g class="ripples">${w.rip}</g>`;
+        return `<div class="scene"><svg ${head}><defs>${defsStr}</defs>${room(["base"])}${rip}${tail}</svg></div>`;
+      }
+      const fx = `<g class="ripples">${w.rip}</g><g class="echoes">${w.echo}</g><rect class="tint" width="${VB.w}" height="${VB.h}"/>`;
+      const act = actors.sort((a, b) => b.key - a.key).map(x => x.svg).join("");
+      return `<div class="scene live">` +
+        `<svg class="sc-a" ${head}><defs>${defsStr}</defs>${room(["base"])}${tail}</svg>` +
+        `<svg class="sc-b" ${head}>${room(["base", "prod"])}${tail}</svg>` +
+        `<svg class="sc-hang" ${head}>${objs.filter(x => x.layer === "hang").map(x => x.svg).join("")}</svg>` +
+        `<svg class="sc-actors" ${head}>${act}</svg>` +
+        `<svg class="sc-fx" ${head}>${fx}</svg></div>`;
     }
 
     // Draw the Feltouch products of this scenario (kind / look / surface / quantity come from calc.js)
@@ -624,7 +686,7 @@
     }
 
     return {
-      id, W, H, D, hw, P, poly, sc, add, rnd, box, cyl, person, chair, table, plant, glow, pendant, monitor,
+      id, W, H, D, hw, P, poly, sc, add, rnd, box, cyl, person, walker, chair, table, plant, glow, pendant, monitor,
       applySolution, buildShell, windowSide, finish
     };
   }
@@ -635,8 +697,8 @@
   const SCENES = {};
 
   /* ---------- AIRPORT TERMINAL ---------- */
-  SCENES.airport = lines => {
-    const S = createScene({ W: 16, H: 7.5, D: 26, f: 760, cb: 8, eye: 1.65, seed: 31 });
+  SCENES.airport = (lines, live) => {
+    const S = createScene({ live, W: 16, H: 7.5, D: 26, f: 760, cb: 8, eye: 1.65, seed: 31 });
     const { hw, H, D, P, poly, box, sc } = S;
     S.buildShell({
       wall: "#e3e2dd", floor: "#cfd1d0", ceil: "#dfe2e3", floorPat: "tiles", floorLine: "rgba(40,46,50,.15)", glossy: true,
@@ -681,19 +743,24 @@
       for (let i = 0; i < 5; i++) box(-.8, 5.95 - i * .19, z - .006, 1.2 * (.5 + ((i * 37) % 10) / 20), .07, .005, i % 2 ? "#e5c25b" : "#f2f2f2", { emit: true, nostroke: true, bias: -.03 });
     });
     [[-1.2, 8.4, 1], [1.0, 10.2, -1], [-2.4, 13.4, 1], [0.2, 15.6, -1], [-.8, 19.4, 1], [2.2, 17.2, -1], [-3.2, 21.5, 1], [1.2, 23, -1]].forEach(([x, z, st], i) => {
-      S.person(x, z, { seed: i * 17 + 3, s: .98 + (i % 3) * .03, pose: i % 3 === 0 ? "walk" : "stand", step: st, back: i % 2 === 1, walk: i % 3 === 0 ? 26 : 0, bag: i % 4 === 1 ? "#26323f" : null });
+      S.person(x, z, { seed: i * 17 + 3, s: .98 + (i % 3) * .03, pose: i % 3 === 0 ? "walk" : "stand", step: st, back: i % 2 === 1, bag: i % 4 === 1 ? "#26323f" : null });
       if (i % 2 === 0) { box(x + .4, 0, z - .08, .42, .66, .24, ["#3b4a58", "#8a2f2f", "#2a2d30"][i % 3], { shadow: true, tex: "fabric" }); box(x + .58, .66, z, .04, .24, .02, "#999", { shadow: false, nostroke: true }); }
     });
     [[3.9, 7.2], [5.6, 7.2], [4.4, 10.7], [6.2, 14.2], [4.8, 21.2]].forEach(([x, z], i) => S.person(x, z, { seated: true, back: true, seed: i * 11 + 5, bias: -.3 }));
 
+    S.walker(4.3, { dir: 1, speed: 1.35, seed: 3, x: -2, phase: .15 });
+    S.walker(5.7, { dir: -1, speed: 1.1, seed: 8, g: "f", x: 2.5, phase: .62 });
+    S.person(-5.4, 3.6, { seed: 21, anim: "idle", g: "m", s: 1 });
+    S.person(-4.6, 3.7, { seed: 34, anim: "idle", g: "f", s: 1 });
+    S.person(5.2, 4.6, { seed: 12, anim: "idle", pose: "phone", g: "m" });
     S.applySolution(lines, { ceiling: { x0: -7, x1: 7, z0: 5, z1: 24 }, baffleH: .3, baffleDrop: .55, baffleD: 2.8,
       wallL: [{ z0: 6, z1: 25, y0: 1.9, y1: 5.2 }], wallR: [{ z0: 6, z1: 25, y0: 1.9, y1: 5.2 }], wallB: [{ x0: -7, x1: 7, y0: .3, y1: 1.2 }] });
     return S.finish({ zs: 11 });
   };
 
   /* ---------- UNIVERSITY CLASSROOM ---------- */
-  SCENES.classroom = lines => {
-    const S = createScene({ W: 9, H: 3.4, D: 11, f: 800, cb: 7, eye: 1.65, seed: 17 });
+  SCENES.classroom = (lines, live) => {
+    const S = createScene({ live, W: 9, H: 3.4, D: 11, f: 800, cb: 7, eye: 1.65, seed: 17 });
     const { H, D, box, table, chair, plant } = S;
     S.buildShell({
       wall: "#ece4d5", floor: "#b99f80", ceil: "#f3f0ea", floorPat: "planks", floorLine: "rgba(60,40,20,.18)", floorTex: "wood", glossy: true,
@@ -717,6 +784,9 @@
       else box(x + .1, .74, z + .1, .22, .02, .3, "#f3f1ea", { nostroke: true, shadow: false });
     }));
     plant(3.7, 9.8, 1.1);
+    S.walker(2.5, { dir: 1, speed: 1.3, seed: 14, x: -1, phase: .3 });
+    S.person(-3.7, 2.9, { seed: 27, anim: "idle", g: "f" });
+    S.person(3.4, 3.0, { seed: 9, anim: "idle", g: "m", top: "#7d8d76" });
     S.applySolution(lines, { ceiling: { x0: -3.9, x1: 3.9, z0: 2.6, z1: 9.8 }, cloudDrop: .5,
       wallL: [{ z0: 2.4, z1: 10.4, y0: 2.85, y1: 3.3 }], wallR: [{ z0: 2.4, z1: 10.4, y0: .8, y1: 2.6 }],
       wallB: [{ x0: -4.3, x1: -2.4, y0: .8, y1: 2.6 }, { x0: 2.4, x1: 4.3, y0: .8, y1: 2.6 }] });
@@ -724,8 +794,8 @@
   };
 
   /* ---------- OPEN OFFICE ---------- */
-  SCENES.office = lines => {
-    const S = createScene({ W: 11, H: 3.2, D: 14, f: 800, cb: 7, eye: 1.65, seed: 23 });
+  SCENES.office = (lines, live) => {
+    const S = createScene({ live, W: 11, H: 3.2, D: 14, f: 800, cb: 7, eye: 1.65, seed: 23 });
     const { box, table, chair, plant } = S;
     S.buildShell({
       wall: "#e6e4df", floor: "#8d9499", ceil: "#cdd0d1", floorTex: "carpet", ceilGrid: false,
@@ -754,16 +824,19 @@
     table(3.5, 12.0, 1.5, .8, .74, "#7b6a58");
     [3.6, 4.6].forEach(x => chair(x, 11.6, "+z", "#425563"));
     S.person(4.1, 12.9, { seed: 55, g: "f", pose: "stand" });
-    S.person(-2.2, 6.2, { seed: 61, pose: "walk", walk: 22, step: 1, bag: "#2a2d30" });
+    S.person(-2.2, 6.2, { seed: 61, pose: "walk", step: 1, bag: "#2a2d30" });
     plant(-4.8, 4.2, 1.2); plant(4.8, 5.6, 1.1); plant(-4.8, 12.5, 1.1);
+    S.walker(2.3, { dir: -1, speed: 1.3, seed: 55, g: "f", x: 1.5, phase: .4 });
+    S.person(4.3, 2.7, { seed: 61, anim: "idle", pose: "phone", g: "m" });
+    S.person(-4.2, 2.8, { seed: 38, anim: "idle", g: "f" });
     S.applySolution(lines, { ceiling: { x0: -4.8, x1: 4.8, z0: 2.2, z1: 13.9 }, baffleH: .3, baffleDrop: .4, baffleD: 2.4,
       wallL: [{ z0: 2.2, z1: 13.4, y0: 2.85, y1: 3.1 }], wallR: [{ z0: 2.6, z1: 13.6, y0: .9, y1: 2.6 }], wallB: [{ x0: -5, x1: -.4, y0: .8, y1: 2.7 }] });
     return S.finish({ zs: 6.5 });
   };
 
   /* ---------- RESTAURANT ---------- */
-  SCENES.restaurant = lines => {
-    const S = createScene({ W: 10, H: 3.4, D: 12, f: 800, cb: 7, eye: 1.65, seed: 41 });
+  SCENES.restaurant = (lines, live) => {
+    const S = createScene({ live, W: 10, H: 3.4, D: 12, f: 800, cb: 7, eye: 1.65, seed: 41 });
     const { D, box, cyl, chair, plant, pendant } = S;
     S.buildShell({
       wall: "#d6c1ac", floor: "#a67f5d", ceil: "#8d8882", floorPat: "planks", floorLine: "rgba(50,30,15,.24)", floorTex: "wood", glossy: true,
@@ -797,7 +870,10 @@
     box(3.7, 0, 3, 1.2, .45, 8.5, "#7a4a3a", { tex: "fabric" });
     box(4.85, .45, 3, .12, .7, 8.5, "#6a4033", { shadow: false, tex: "fabric" });
     plant(-4.4, 3.2, 1.2);
-    S.person(-1.2, 5.9, { seed: 77, pose: "walk", walk: 18, step: 1, top: "#f1f1ee", bottom: "#222", g: "f" });
+    S.person(-1.2, 5.9, { seed: 77, pose: "walk", step: 1, top: "#f1f1ee", bottom: "#222", g: "f" });
+    S.walker(2.7, { dir: 1, speed: 1.25, seed: 77, g: "m", top: "#f1f1ee", bottom: "#222", x: -1, phase: .2 });
+    S.person(-3.8, 2.9, { seed: 90, anim: "idle", g: "f" });
+    S.person(3.9, 3.0, { seed: 44, anim: "idle", g: "m" });
     S.applySolution(lines, { ceiling: { x0: -4.2, x1: 4.2, z0: 2.6, z1: 11.2 }, cloudDrop: .55, cloudW: 1.2, cloudD: 1.9,
       wallL: [{ z0: 2.6, z1: 10.6, y0: 2.85, y1: 3.3 }], wallR: [{ z0: 2.6, z1: 11, y0: 1.25, y1: 2.7 }],
       wallB: [{ x0: -5, x1: -3.5, y0: .8, y1: 2.9 }, { x0: 3.5, x1: 5, y0: .8, y1: 2.9 }] });
@@ -805,8 +881,8 @@
   };
 
   /* ---------- WAITING AREA ---------- */
-  SCENES.waiting = lines => {
-    const S = createScene({ W: 9, H: 3.4, D: 10, f: 800, cb: 6.5, eye: 1.65, seed: 53 });
+  SCENES.waiting = (lines, live) => {
+    const S = createScene({ live, W: 9, H: 3.4, D: 10, f: 800, cb: 6.5, eye: 1.65, seed: 53 });
     const { D, box, chair, plant, table } = S;
     S.buildShell({
       wall: "#e9e4da", floor: "#cbc6bd", ceil: "#f1efea", floorPat: "tiles", floorLine: "rgba(60,60,58,.16)", glossy: true,
@@ -837,10 +913,13 @@
     table(3.0, 5.4, .8, .5, .45, "#8a6a4a");
     box(3.15, .45, 5.55, .3, .02, .22, "#e8e2d4", { nostroke: true, shadow: false });
     plant(-4.0, 9.2, 1.4); plant(4.0, 3.0, 1.1);
+    S.walker(3.4, { dir: 1, speed: 1.3, seed: 66, x: 0, phase: .5 });
+    S.person(-3.4, 3.9, { seed: 52, anim: "idle", pose: "phone", g: "m" });
+    S.person(3.7, 3.5, { seed: 19, anim: "idle", g: "f" });
     S.applySolution(lines, { ceiling: { x0: -3.8, x1: 3.8, z0: 2.0, z1: 9.0 },
       wallL: [{ z0: 2.4, z1: 9.4, y0: 2.85, y1: 3.3 }], wallR: [{ z0: 2.2, z1: 9.6, y0: .9, y1: 2.7 }], wallB: [{ x0: .9, x1: 4.3, y0: 1.5, y1: 2.9 }] });
     return S.finish({ zs: 4.8 });
   };
 
-  window.renderRoomScene = (icon, lines) => (SCENES[icon] ? SCENES[icon](lines || []) : "");
+  window.renderRoomScene = (icon, lines, live) => (SCENES[icon] ? SCENES[icon](lines || [], !!live) : "");
 })();

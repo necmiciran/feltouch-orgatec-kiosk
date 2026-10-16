@@ -276,7 +276,7 @@
     statDelta.classList.remove("ready");
     setLabel("hint_default");
 
-    roomVisual.innerHTML = renderRoomScene(sc.icon, sc.calc.lines);
+    roomVisual.innerHTML = renderRoomScene(sc.icon, sc.calc.lines, true);
     setRoomState("before");
     refreshDurations();
     loadBuffer(sc.audio).catch(() => {});
