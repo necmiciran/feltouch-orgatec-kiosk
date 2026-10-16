@@ -277,6 +277,7 @@
     setLabel("hint_default");
 
     roomVisual.innerHTML = renderRoomScene(sc.icon, sc.calc.lines, true);
+    layoutCamera();
     setRoomState("before");
     refreshDurations();
     loadBuffer(sc.audio).catch(() => {});
@@ -330,6 +331,7 @@
   }
 
   function setRoomState(mode) {
+    layoutCamera();
     roomVisual.classList.toggle("state-after", mode === "after");
     roomVisual.classList.toggle("state-before", mode === "before");
   }
@@ -371,6 +373,23 @@
     }
     return renderCache.get(sc.id);
   }
+
+  /* ---------------- camera: Play moves in on the conversation of the scene ---------------- */
+  function layoutCamera() {
+    const sceneEl = roomVisual.querySelector(".scene.live");
+    if (!sceneEl) return;
+    const cw = roomVisual.clientWidth, ch = roomVisual.clientHeight;
+    if (!cw || !ch) return;
+    const k = Math.max(cw / 640, ch / 440), ox = (cw - 640 * k) / 2;       // viewBox → container (xMidYMin slice)
+    const fx = ox + parseFloat(sceneEl.dataset.fx) * k, fy = parseFloat(sceneEl.dataset.fy) * k, fz = parseFloat(sceneEl.dataset.fz);
+    const cam = (px, py, z) => {                                              // keep the point (px,py) in the middle, never show past the edges
+      const tx = Math.min(0, Math.max(cw - cw * z, cw / 2 - px * z)), ty = Math.min(0, Math.max(ch - ch * z, ch * .5 - py * z));
+      return `translate(${tx.toFixed(1)}px, ${ty.toFixed(1)}px) scale(${z})`;
+    };
+    sceneEl.style.setProperty("--zt-focus", cam(fx, fy, fz));
+    sceneEl.style.setProperty("--zt-push", cam(cw / 2, ch * .45, 1.04));
+  }
+  window.addEventListener("resize", layoutCamera);
 
   /* ---------------- sound-reactive rings: every sound onset sends a ring across the floor ----------------
      Before: rings live as long as the room rings (RT60) and reflect off the walls. After: short, clean pulses. */

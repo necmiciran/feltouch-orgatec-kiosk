@@ -323,8 +323,9 @@ svg { display: block; }
 /* products: wall panels / flush tiles cross-fade (GPU opacity on a ready-made layer); hanging baffles drop in */
 .sc-b { opacity: 0; transition: opacity .8s ease; will-change: opacity; }
 .state-after .sc-b { opacity: 1; transition: opacity 1.5s ease .6s; }
-.scene.live { will-change: transform; transform-origin: 50% 42%; transition: transform 2.4s cubic-bezier(.22, .8, .2, 1); }
-.state-after .scene.live { transform: scale(1.04); }
+.scene.live { transform-origin: 0 0; transition: transform 2.6s cubic-bezier(.22, .78, .2, 1); }
+.state-after .scene.live { transform: var(--zt-push, none); }
+.is-playing .scene.live { transform: var(--zt-focus, none); }   /* Play: the camera moves in on the people talking */
 .sc-b .slat { opacity: 1; transform: none; transition: none; }
 
 /* ---- people: every animated part is a small transform-only animation (no filters, no big repaints) ---- */

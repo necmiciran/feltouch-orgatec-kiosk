@@ -660,7 +660,8 @@
       const fx = `<g>${dustSvg()}</g><g class="ripples">${w.rip}</g><g class="echoes">${w.echo}</g><rect class="tint" width="${VB.w}" height="${VB.h}"/>`;
       const ambS = amb.sort((a, b) => b.key - a.key).map(x => x.svg).join("");
       const act = actors.sort((a, b) => b.key - a.key).map(x => x.svg).join("");
-      return `<div class="scene live">` +
+      const fp = o.focus ? P(o.focus[0], o.focus[1], o.focus[2]) : [VB.cx, VB.cy];
+      return `<div class="scene live" data-fx="${fp[0].toFixed(1)}" data-fy="${fp[1].toFixed(1)}" data-fz="${(o.focus && o.focus[3]) || 1.8}">` +
         `<svg class="sc-a" ${head}><defs>${defsStr}</defs>${room(["base"])}${tail}</svg>` +
         `<svg class="sc-b" ${head}>${room(["base", "prod"])}${tail}</svg>` +
         `<svg class="sc-hang" ${head}>${objs.filter(x => x.layer === "hang").map(x => x.svg).join("")}</svg>` +
@@ -779,12 +780,12 @@
     S.walker(4.55, { dir: 1, speed: 1.35, seed: 11, g: "f", x: -1.5, phase: .17, roller: "#8a2f2f" });
     S.walker(5.7, { dir: -1, speed: 1.1, seed: 8, g: "f", x: 2.5, phase: .62 });
     S.dust(-5, 5, .4, 5.2, 17, 25, 36);
-    S.person(-5.4, 3.6, { seed: 21, anim: "idle", g: "m", s: 1 });
-    S.person(-4.6, 3.7, { seed: 34, anim: "idle", g: "f", s: 1 });
+    S.person(-2.95, 3.7, { seed: 21, anim: "idle", g: "m", s: 1 });
+    S.person(-2.1, 3.8, { seed: 34, anim: "idle", g: "f", s: 1 });
     S.person(5.2, 4.6, { seed: 12, anim: "idle", pose: "phone", g: "m" });
     S.applySolution(lines, { ceiling: { x0: -7, x1: 7, z0: 5, z1: 24 }, baffleH: .3, baffleDrop: .55, baffleD: 2.8,
       wallL: [{ z0: 6, z1: 25, y0: 1.9, y1: 5.2 }], wallR: [{ z0: 6, z1: 25, y0: 1.9, y1: 5.2 }], wallB: [{ x0: -7, x1: 7, y0: .3, y1: 1.2 }] });
-    return S.finish({ zs: 11 });
+    return S.finish({ zs: 11, focus: [-2.5, 1.2, 3.75, 2.1] });
   };
 
   /* ---------- UNIVERSITY CLASSROOM ---------- */
@@ -815,12 +816,12 @@
     plant(3.7, 9.8, 1.1);
     S.walker(2.5, { dir: 1, speed: 1.3, seed: 14, x: -1, phase: .3 });
     S.walker(2.95, { dir: -1, speed: 1.15, seed: 32, g: "f", x: 2, phase: .75 });
-    S.person(-3.7, 2.9, { seed: 27, anim: "idle", g: "f" });
-    S.person(3.4, 3.0, { seed: 9, anim: "idle", g: "m", top: "#7d8d76" });
+    S.person(-1.65, 2.9, { seed: 27, anim: "idle", g: "f" });
+    S.person(-.8, 3.0, { seed: 9, anim: "idle", g: "m", top: "#7d8d76" });
     S.applySolution(lines, { ceiling: { x0: -3.9, x1: 3.9, z0: 2.6, z1: 9.8 }, cloudDrop: .5,
       wallL: [{ z0: 2.4, z1: 10.4, y0: 2.85, y1: 3.3 }], wallR: [{ z0: 2.4, z1: 10.4, y0: .8, y1: 2.6 }],
       wallB: [{ x0: -4.3, x1: -2.4, y0: .8, y1: 2.6 }, { x0: 2.4, x1: 4.3, y0: .8, y1: 2.6 }] });
-    return S.finish({ zs: 5 });
+    return S.finish({ zs: 5, focus: [-1.2, 1.15, 2.95, 2.0] });
   };
 
   /* ---------- OPEN OFFICE ---------- */
@@ -858,11 +859,12 @@
     plant(-4.8, 4.2, 1.2); plant(4.8, 5.6, 1.1); plant(-4.8, 12.5, 1.1);
     S.walker(2.3, { dir: -1, speed: 1.3, seed: 55, g: "f", x: 1.5, phase: .4 });
     S.walker(2.75, { dir: 1, speed: 1.2, seed: 70, x: -2, phase: .85 });
-    S.person(4.3, 2.7, { seed: 61, anim: "idle", pose: "phone", g: "m" });
-    S.person(-4.2, 2.8, { seed: 38, anim: "idle", g: "f" });
+    S.person(2.75, 2.9, { seed: 61, anim: "idle", g: "m" });
+    S.person(-4.4, 2.7, { seed: 18, anim: "idle", pose: "phone", g: "f" });
+    S.person(1.9, 2.8, { seed: 38, anim: "idle", g: "f" });
     S.applySolution(lines, { ceiling: { x0: -4.8, x1: 4.8, z0: 2.2, z1: 13.9 }, baffleH: .3, baffleDrop: .4, baffleD: 2.4,
       wallL: [{ z0: 2.2, z1: 13.4, y0: 2.85, y1: 3.1 }], wallR: [{ z0: 2.6, z1: 13.6, y0: .9, y1: 2.6 }], wallB: [{ x0: -5, x1: -.4, y0: .8, y1: 2.7 }] });
-    return S.finish({ zs: 6.5 });
+    return S.finish({ zs: 6.5, focus: [2.3, 1.15, 2.85, 2.0] });
   };
 
   /* ---------- RESTAURANT ---------- */
@@ -904,12 +906,12 @@
     S.person(-1.2, 5.9, { seed: 77, pose: "walk", step: 1, top: "#f1f1ee", bottom: "#222", g: "f" });
     S.walker(3.15, { dir: -1, speed: 1.1, seed: 81, g: "f", x: 2, phase: .6 });
     S.walker(2.7, { dir: 1, speed: 1.25, seed: 77, g: "m", top: "#f1f1ee", bottom: "#222", x: -1, phase: .2 });
-    S.person(-3.8, 2.9, { seed: 90, anim: "idle", g: "f" });
-    S.person(3.9, 3.0, { seed: 44, anim: "idle", g: "m" });
+    S.person(-1.75, 3.0, { seed: 90, anim: "idle", g: "f" });
+    S.person(-.9, 3.1, { seed: 44, anim: "idle", g: "m" });
     S.applySolution(lines, { ceiling: { x0: -4.2, x1: 4.2, z0: 2.6, z1: 11.2 }, cloudDrop: .55, cloudW: 1.2, cloudD: 1.9,
       wallL: [{ z0: 2.6, z1: 10.6, y0: 2.85, y1: 3.3 }], wallR: [{ z0: 2.6, z1: 11, y0: 1.25, y1: 2.7 }],
       wallB: [{ x0: -5, x1: -3.5, y0: .8, y1: 2.9 }, { x0: 3.5, x1: 5, y0: .8, y1: 2.9 }] });
-    return S.finish({ zs: 5.5 });
+    return S.finish({ zs: 5.5, focus: [-1.3, 1.15, 3.05, 2.0] });
   };
 
   /* ---------- WAITING AREA ---------- */
@@ -948,10 +950,11 @@
     S.walker(3.4, { dir: 1, speed: 1.3, seed: 66, x: 0, phase: .5 });
     S.walker(4.05, { dir: -1, speed: 1.15, seed: 85, g: "f", x: 1.5, phase: .9 });
     S.person(-3.4, 3.9, { seed: 52, anim: "idle", pose: "phone", g: "m" });
-    S.person(3.7, 3.5, { seed: 19, anim: "idle", g: "f" });
+    S.person(1.15, 3.6, { seed: 19, anim: "idle", g: "f" });
+    S.person(1.95, 3.7, { seed: 73, anim: "idle", g: "m" });
     S.applySolution(lines, { ceiling: { x0: -3.8, x1: 3.8, z0: 2.0, z1: 9.0 },
       wallL: [{ z0: 2.4, z1: 9.4, y0: 2.85, y1: 3.3 }], wallR: [{ z0: 2.2, z1: 9.6, y0: .9, y1: 2.7 }], wallB: [{ x0: .9, x1: 4.3, y0: 1.5, y1: 2.9 }] });
-    return S.finish({ zs: 4.8 });
+    return S.finish({ zs: 4.8, focus: [1.55, 1.15, 3.65, 2.0] });
   };
 
   window.renderRoomScene = (icon, lines, live) => (SCENES[icon] ? SCENES[icon](lines || [], !!live) : "");
