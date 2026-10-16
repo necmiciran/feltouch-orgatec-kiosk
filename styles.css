@@ -325,7 +325,6 @@ svg { display: block; }
 .state-after .sc-b { opacity: 1; transition: opacity 1.5s ease .6s; }
 .scene.live { transform-origin: 0 0; transition: transform 2.6s cubic-bezier(.22, .78, .2, 1); }
 .state-after .scene.live { transform: var(--zt-push, none); }
-.is-playing .scene.live { transform: var(--zt-focus, none); }   /* Play: the camera moves in on the people talking */
 .sc-b .slat { opacity: 1; transform: none; transition: none; }
 
 /* ---- people: every animated part is a small transform-only animation (no filters, no big repaints) ---- */

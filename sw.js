@@ -1,5 +1,5 @@
 // Offline cache: everything (code + 5 recordings) is stored on first load, then served from the cache.
-const CACHE = "feltouch-kiosk-20261014q";
+const CACHE = "feltouch-kiosk-20261014r";
 const FILES = [
   "./", "index.html", "styles.css", "app.js", "calc.js", "dsp.js", "fon.js", "qr.js", "room3d.js",
   "data/i18n.js", "data/catalog.js", "data/scenarios.js", "manifest.webmanifest",
