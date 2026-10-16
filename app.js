@@ -372,7 +372,45 @@
     return renderCache.get(sc.id);
   }
 
+  /* ---------------- sound-reactive rings: every sound onset sends a ring across the floor ----------------
+     Before: rings live as long as the room rings (RT60) and reflect off the walls. After: short, clean pulses. */
+  let pulseRaf = 0, pulseIdx = 0;
+  function stopPulses() { cancelAnimationFrame(pulseRaf); pulseRaf = 0; }
+  function emitPulse(level, rt, mode) {
+    const rings = roomVisual.querySelectorAll(".ripple");
+    if (!rings.length || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const dur = Math.min(5200, 500 + rt * 900);
+    const a = Math.min(.95, .35 + level * 5);
+    const echoes = mode === "before" ? Math.min(3, Math.round(rt / 1.4)) : 0;
+    for (let i = 0; i <= echoes; i++) {
+      const el = rings[pulseIdx++ % rings.length];
+      el.getAnimations().forEach(x => x.cancel());
+      const k = Math.pow(.55, i);
+      el.animate([
+        { transform: `scale(${.12 + i * .22})`, opacity: a * k },
+        { opacity: a * k * .65, offset: .3 },
+        { transform: "scale(1.12)", opacity: 0 }
+      ], { duration: dur, delay: i * 330, easing: "cubic-bezier(.2,.65,.3,1)" });
+    }
+  }
+  function startPulses(analyser, mode, sc) {
+    stopPulses();
+    const data = new Float32Array(analyser.fftSize), rt = mode === "before" ? sc.calc.before : sc.calc.after;
+    let avg = 0.03, last = 0, tick = 0;
+    const loop = now => {
+      pulseRaf = requestAnimationFrame(loop);
+      if ((tick++ & 1) || document.hidden) return;                  // analyse ~30×/s
+      analyser.getFloatTimeDomainData(data);
+      let sum = 0; for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
+      const rms = Math.sqrt(sum / data.length);
+      if (rms > 0.02 && rms > avg * 1.35 && now - last > 190) { last = now; emitPulse(rms, rt, mode); }
+      avg += (rms - avg) * 0.05;
+    };
+    pulseRaf = requestAnimationFrame(loop);
+  }
+
   function stopAmbience() {
+    stopPulses();
     playToken++;
     clearInterval(progressTimer);
     progressTimer = null;
@@ -459,6 +497,7 @@
     src.connect(gain);
     gain.connect(lim);
     lim.connect(ctx.destination);
+    try { const an = ctx.createAnalyser(); an.fftSize = 512; lim.connect(an); startPulses(an, mode, sc); } catch (e) { /* no analyser: rings are optional */ }
 
     src.onended = () => {
       if (currentSource === src) {

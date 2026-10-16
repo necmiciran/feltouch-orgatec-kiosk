@@ -106,7 +106,7 @@
     const hw = W / 2;
     const id = `rs${++UID}`;
     const rnd = mulberry(p.seed || 7);
-    const objs = [], shadows = [], contact = [], lowGlow = [], actors = [];
+    const objs = [], shadows = [], contact = [], lowGlow = [], actors = [], amb = [], dustSpots = [];
     let shell = "", defsStr = "";
 
     const P = (x, y, z) => [VB.cx + f * x / (z + cb), VB.cy - f * (y - eye) / (z + cb)];
@@ -239,7 +239,7 @@
           if (female) hd += `<path d="M-.088,-1.69 C-.12,-1.6 -.1,-1.5 -.07,-1.48 L-.055,-1.68 Z" fill="${hair}"/><path d="M.088,-1.69 C.12,-1.6 .1,-1.5 .07,-1.48 L.055,-1.68 Z" fill="${hair}"/>`;
           if (big) hd += `<ellipse cx="-.03" cy="-1.7" rx=".0095" ry=".0065" fill="#1d1a19"/><ellipse cx=".03" cy="-1.7" rx=".0095" ry=".0065" fill="#1d1a19"/><path d="M-.022,-1.645 Q0,-1.635 .022,-1.645" stroke="rgba(120,50,45,.7)" stroke-width=".006" fill="none"/>`;
         }
-        u += act ? `<g class="a-head">${hd}</g>` : hd;
+        u += act ? `<g class="a-head" style="transform-origin:0px -1.6px">${hd}</g>` : hd;
         return u;
       };
 
@@ -267,7 +267,7 @@
         if (pose === "carry" || o.bag) {
           up += `<path d="M-.2,-1.5 L-.34,-.9" stroke="#222" stroke-width=".014" fill="none"/><rect x="-.44" y="-.95" width=".2" height=".26" rx=".025" fill="${o.bag || "#6a4a35"}"/><rect x="-.44" y="-.95" width=".2" height=".26" rx=".025" fill="url(#sh-h)"/>`;
         }
-        g += act ? `<g class="a-upper">${up}</g>` : up;
+        g += act ? `<g class="a-upper" style="transform-origin:0px -.97px">${up}</g>` : up;
       }
       const flip = (r % 2 && !back) ? "scale(-1,1)" : "";
       if (act) {
@@ -288,19 +288,26 @@
       const [bx, by] = P(o.x != null ? o.x : 0, 0, z), m = sc(z) * (o.s || 1);
       const st = !live;                                   // static pose (thumbnails)
       const part = (d, fill, ov = "sh-h") => `<path d="${d}" fill="${fill}"/>` + (ov ? `<path d="${d}" fill="url(#${ov})"/>` : "");
-      const legP = "M-.075,-.98 C-.09,-.7 -.075,-.4 -.065,-.09 L.065,-.09 C.065,-.4 .085,-.7 .095,-.98 Z";
-      const shoeP = "M-.075,-.09 L.15,-.09 C.185,-.08 .185,-.025 .14,-.02 L-.075,-.02 Z";
+      // two-segment legs and arms (hip → knee → ankle, shoulder → elbow) so the gait reads as a real stride
+      const thighP = "M-.075,-.98 C-.088,-.86 -.082,-.66 -.07,-.47 L.07,-.47 C.078,-.66 .09,-.86 .095,-.98 Z";
+      const shinP = "M-.068,-.06 C-.066,.18 -.062,.34 -.058,.43 L.058,.43 C.058,.34 .07,.18 .068,-.06 Z";
+      const shoeP = "M-.07,.43 L.15,.43 C.185,.44 .185,.5 .14,.5 L-.07,.5 Z";
       const shortS = (r % 4) === 0;
-      const armP = shortS ? "M-.05,0 C.035,.04 .055,.18 .05,.3 L-.035,.3 C-.045,.18 -.055,.08 -.05,0 Z" : "M-.05,0 C.035,.05 .055,.3 .05,.55 L-.035,.55 C-.045,.3 -.055,.1 -.05,0 Z";
-      const foreP = "M-.035,.3 L.05,.3 L.052,.56 L-.03,.56 Z";
-      const kid = (cls, ph, ang, inner, lift) => st
-        ? `<g style="transform:rotate(${ang}deg);transform-box:fill-box;transform-origin:50% 0">${inner}</g>`
-        : `<g class="${cls}" style="--ph:${ph}">${lift ? `<g class="w-lift" style="--ph:${ph}">${inner}</g>` : inner}</g>`;
-      const leg = (far, ph, ang) => kid("w-leg", ph, ang, part(legP, far ? shade(bottom, .68) : bottom) + `<path d="${shoeP}" fill="${far ? "#101113" : "#1b1b1d"}"/>`, true);
+      const uarmP = shortS ? "M-.05,0 C.035,.04 .052,.16 .05,.3 L-.035,.3 C-.045,.16 -.055,.07 -.05,0 Z" : "M-.05,0 C.035,.04 .052,.16 .05,.3 L-.035,.3 C-.045,.16 -.055,.07 -.05,0 Z";
+      const farmP = "M-.036,0 L.05,0 C.052,.1 .05,.2 .046,.27 L-.03,.27 Z";
+      const W = (cls, ph, inner, org) => `<g class="${cls}" style="--ph:${ph};transform-origin:${org}">${inner}</g>`;
+      const leg = (far, ph, ang) => {
+        const bt = far ? shade(bottom, .68) : bottom, shoe = far ? "#101113" : "#1b1b1d";
+        const shin = part(shinP, bt) + (st ? "" : "") + W("w-foot", ph, `<path d="${shoeP}" fill="${shoe}"/>`, "0px .43px");
+        const knee = `<g transform="translate(0,-.52)">${W("w-shin", ph, shin, "0px 0px")}</g>`;
+        const inner = part(thighP, bt) + knee;
+        return st ? `<g style="transform:rotate(${ang}deg);transform-origin:0px -.98px">${inner}</g>` : W("w-thigh", ph, inner, "0px -.98px");
+      };
       const armSide = (far, ph, ang) => {
         const tp = far ? shade(top, .72) : top, sk = far ? shade(skin, .8) : skin;
-        const inner = (shortS ? part(foreP, sk) : "") + part(armP, tp) + `<ellipse cx=".008" cy=".6" rx=".034" ry=".05" fill="${sk}"/>`;
-        return `<g transform="translate(-.005,-1.5)">${kid("w-arm", ph, ang, inner, false)}</g>`;
+        const fore = (shortS ? part(farmP, sk) : part(farmP, tp)) + `<ellipse cx="0.008" cy=".31" rx=".034" ry=".05" fill="${sk}"/>`;
+        const inner = part(uarmP, tp) + `<g transform="translate(0,.3)">${st ? `<g style="transform:rotate(-14deg);transform-origin:0px 0px">${fore}</g>` : W("w-farm", ph, fore, "0px 0px")}</g>`;
+        return `<g transform="translate(-.005,-1.5)">${st ? `<g style="transform:rotate(${ang}deg);transform-origin:0px 0px">${inner}</g>` : W("w-uarm", ph, inner, "0px 0px")}</g>`;
       };
       const torsoP = "M-.1,-1.52 C-.14,-1.5 -.15,-1.2 -.125,-.97 L.115,-.97 C.15,-1.2 .14,-1.5 .09,-1.56 C.06,-1.6 -.05,-1.6 -.1,-1.52 Z";
       let head = part("M-.092,-1.7 C-.092,-1.8 .09,-1.8 .095,-1.7 C.098,-1.63 .06,-1.6 0,-1.6 C-.06,-1.6 -.092,-1.63 -.092,-1.7 Z", skin);
@@ -310,9 +317,10 @@
       head += `<ellipse cx=".05" cy="-1.7" rx=".009" ry=".0065" fill="#1d1a19"/>`;
       const neck = `<path d="M-.03,-1.63 L.045,-1.63 L.05,-1.55 L-.04,-1.55 Z" fill="${skin}"/><path d="M-.03,-1.63 L.045,-1.63 L.05,-1.55 L-.04,-1.55 Z" fill="rgba(0,0,0,.16)"/>`;
       let fig = `<ellipse cx="0" cy="0" rx=".34" ry=".09" fill="url(#shadow-r)"/>`;
+      if (o.roller) fig += `<g><line x1="-.5" y1="-.62" x2="-.02" y2="-.88" stroke="#2a2d30" stroke-width=".016"/><rect x="-.66" y="-.6" width=".3" height=".52" rx=".03" fill="${o.roller}"/><rect x="-.66" y="-.6" width=".3" height=".52" rx=".03" fill="url(#sh-h)"/><circle cx="-.6" cy="-.04" r=".04" fill="#222"/><circle cx="-.42" cy="-.04" r=".04" fill="#222"/></g>`;
       fig += leg(true, .5, 14) + leg(false, 0, -14);
-      let up = armSide(true, 0, 12) + part(torsoP, top) + neck + `<g class="${st ? "" : "w-head"}">${head}</g>` + armSide(false, .5, -12);
-      fig += `<g transform="rotate(3,0,-.97)"><g class="${st ? "" : "w-sway"}">${up}</g></g>`;
+      let up = armSide(true, 0, 12) + part(torsoP, top) + neck + `<g class="${st ? "" : "w-head"}" style="transform-origin:0px -1.6px">${head}</g>` + armSide(false, .5, -12);
+      fig += `<g transform="rotate(3,0,-.97)"><g class="${st ? "" : "w-sway"}" style="transform-origin:0px -.97px">${up}</g></g>`;
       if (st) {
         add(z + cb + .25, `<g transform="translate(${bx.toFixed(1)},${by.toFixed(1)}) scale(${m.toFixed(2)})"><g transform="scale(${dir},1)">${fig}</g></g>`);
         return;
@@ -357,7 +365,8 @@
         g += `<path d="M${bx.toFixed(1)},${by.toFixed(1)} Q${(bx + (ex - bx) * .4).toFixed(1)},${(by - up * .9).toFixed(1)} ${ex.toFixed(1)},${ey.toFixed(1)}" stroke="#3a4a2f" stroke-width="${(.012 * m).toFixed(2)}" fill="none"/>`;
         g += `<ellipse cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" rx="${(.13 * m).toFixed(1)}" ry="${(.07 * m).toFixed(1)}" fill="${col}" transform="rotate(${(a * 57).toFixed(0)},${ex.toFixed(1)},${ey.toFixed(1)})"/><ellipse cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" rx="${(.13 * m).toFixed(1)}" ry="${(.07 * m).toFixed(1)}" fill="url(#sph)" transform="rotate(${(a * 57).toFixed(0)},${ex.toFixed(1)},${ey.toFixed(1)})"/>`;
       }
-      add(z + cb + .25, g);
+      if (live) amb.push({ key: z, svg: `<g class="amb-leaf" style="transform-origin:${bx.toFixed(1)}px ${by.toFixed(1)}px;--ad:${(-rnd() * 6).toFixed(2)}s">${g}</g>` });
+      else add(z + cb + .25, g);
     }
 
     function glow(x, y, z, r = .9, a = .55, warm = true) {
@@ -372,7 +381,8 @@
       const sh = `M${(lx - a).toFixed(1)},${ly.toFixed(1)} L${(lx + a).toFixed(1)},${ly.toFixed(1)} L${(lx + b).toFixed(1)},${(ly + hh).toFixed(1)} L${(lx - b).toFixed(1)},${(ly + hh).toFixed(1)} Z`;
       s += `<path d="${sh}" fill="${o.col || "#33383c"}"/><path d="${sh}" fill="url(#sh-h)"/>`;
       s += `<ellipse cx="${lx.toFixed(1)}" cy="${(ly + hh).toFixed(1)}" rx="${b.toFixed(1)}" ry="${(.05 * m).toFixed(1)}" fill="#fff3d6"/>`;
-      add(z + cb + .2, s);
+      if (live) amb.push({ key: z, svg: `<g class="amb-sway" style="transform-origin:${tx.toFixed(1)}px ${ty.toFixed(1)}px;--ad:${(-rnd() * 6).toFixed(2)}s">${s}</g>` });
+      else add(z + cb + .2, s);
       glow(x, y - .08, z, 1.15, .55);
     }
 
@@ -597,17 +607,32 @@
       s += poly([[x, y1 - .06, z0], [x, y1 - .06, z1], [x, y1, z1], [x, y1, z0]], opts.frame || "#e8e6e1");
       s += poly([[x, y0 - .02, z0], [x, y0 - .02, z1], [x, y0, z1], [x, y0, z0]], "rgba(0,0,0,.2)");
       shell += s;
+      if (live) dust(Math.min(x, x + k * 3.2), Math.max(x, x + k * 3.2), y0 + .1, y1, z0, Math.min(D, z1 + 2), Math.round((z1 - z0) * 2.2) + 8);
+    }
+
+    // floating dust in a light shaft (3D box → a handful of tiny drifting specks)
+    function dust(x0, x1, y0, y1, z0, z1, n) {
+      dustSpots.push([x0, x1, y0, y1, z0, z1, n]);
+    }
+    function dustSvg() {
+      let out = "";
+      dustSpots.forEach(([x0, x1, y0, y1, z0, z1, n]) => {
+        for (let i = 0; i < n; i++) {
+          const x = x0 + (x1 - x0) * rnd(), y = y0 + (y1 - y0) * rnd(), z = z0 + (z1 - z0) * rnd(), [X, Y] = P(x, y, z);
+          const r = (.5 + rnd() * 1.1) * Math.min(1.6, Math.max(.6, sc(z) / 45));
+          out += `<circle class="dust" cx="${X.toFixed(1)}" cy="${Y.toFixed(1)}" r="${r.toFixed(2)}" style="--dx:${((rnd() - .5) * 26).toFixed(1)}px;--dy:${(-8 - rnd() * 26).toFixed(1)}px;--dt:${(14 + rnd() * 16).toFixed(1)}s;--ad:${(-rnd() * 24).toFixed(1)}s"/>`;
+        }
+      });
+      return out;
     }
 
     function waves(zs) {
       let rip = "";
-      const [cx0] = P(0, 0, zs);
-      [1.4, 2.8, 4.2, 5.6].forEach((r, i) => {
-        const rx = f * r / (zs + cb);
-        const near = Math.max(zs - r, .3);
-        const yN = VB.cy + f * eye / (near + cb), yF = VB.cy + f * eye / (zs + r + cb);
+      const [cx0] = P(0, 0, zs), R = 6.4, rx = f * R / (zs + cb);
+      const near = Math.max(zs - R, .3), yN = VB.cy + f * eye / (near + cb), yF = VB.cy + f * eye / (zs + R + cb);
+      const n = live ? 12 : 4;
+      for (let i = 0; i < n; i++)
         rip += `<ellipse class="ripple r${i + 1}" cx="${cx0.toFixed(1)}" cy="${((yN + yF) / 2).toFixed(1)}" rx="${rx.toFixed(1)}" ry="${((yN - yF) / 2).toFixed(1)}"/>`;
-      });
       const path = pts => `M${pts.map(pt).join("L")}`;
       const e = [
         path([[0, 1.3, zs], [-hw * .55, H, zs + 3], [-hw, H * .55, zs + 6], [-hw * .3, 0, zs + 8]]),
@@ -632,12 +657,14 @@
         const rip = `<g class="ripples">${w.rip}</g>`;
         return `<div class="scene"><svg ${head}><defs>${defsStr}</defs>${room(["base"])}${rip}${tail}</svg></div>`;
       }
-      const fx = `<g class="ripples">${w.rip}</g><g class="echoes">${w.echo}</g><rect class="tint" width="${VB.w}" height="${VB.h}"/>`;
+      const fx = `<g>${dustSvg()}</g><g class="ripples">${w.rip}</g><g class="echoes">${w.echo}</g><rect class="tint" width="${VB.w}" height="${VB.h}"/>`;
+      const ambS = amb.sort((a, b) => b.key - a.key).map(x => x.svg).join("");
       const act = actors.sort((a, b) => b.key - a.key).map(x => x.svg).join("");
       return `<div class="scene live">` +
         `<svg class="sc-a" ${head}><defs>${defsStr}</defs>${room(["base"])}${tail}</svg>` +
         `<svg class="sc-b" ${head}>${room(["base", "prod"])}${tail}</svg>` +
         `<svg class="sc-hang" ${head}>${objs.filter(x => x.layer === "hang").map(x => x.svg).join("")}</svg>` +
+        `<svg class="sc-amb" ${head}>${ambS}</svg>` +
         `<svg class="sc-actors" ${head}>${act}</svg>` +
         `<svg class="sc-fx" ${head}>${fx}</svg></div>`;
     }
@@ -687,7 +714,7 @@
 
     return {
       id, W, H, D, hw, P, poly, sc, add, rnd, box, cyl, person, walker, chair, table, plant, glow, pendant, monitor,
-      applySolution, buildShell, windowSide, finish
+      applySolution, buildShell, windowSide, finish, dust
     };
   }
 
@@ -749,7 +776,9 @@
     [[3.9, 7.2], [5.6, 7.2], [4.4, 10.7], [6.2, 14.2], [4.8, 21.2]].forEach(([x, z], i) => S.person(x, z, { seated: true, back: true, seed: i * 11 + 5, bias: -.3 }));
 
     S.walker(4.3, { dir: 1, speed: 1.35, seed: 3, x: -2, phase: .15 });
+    S.walker(4.55, { dir: 1, speed: 1.35, seed: 11, g: "f", x: -1.5, phase: .17, roller: "#8a2f2f" });
     S.walker(5.7, { dir: -1, speed: 1.1, seed: 8, g: "f", x: 2.5, phase: .62 });
+    S.dust(-5, 5, .4, 5.2, 17, 25, 36);
     S.person(-5.4, 3.6, { seed: 21, anim: "idle", g: "m", s: 1 });
     S.person(-4.6, 3.7, { seed: 34, anim: "idle", g: "f", s: 1 });
     S.person(5.2, 4.6, { seed: 12, anim: "idle", pose: "phone", g: "m" });
@@ -785,6 +814,7 @@
     }));
     plant(3.7, 9.8, 1.1);
     S.walker(2.5, { dir: 1, speed: 1.3, seed: 14, x: -1, phase: .3 });
+    S.walker(2.95, { dir: -1, speed: 1.15, seed: 32, g: "f", x: 2, phase: .75 });
     S.person(-3.7, 2.9, { seed: 27, anim: "idle", g: "f" });
     S.person(3.4, 3.0, { seed: 9, anim: "idle", g: "m", top: "#7d8d76" });
     S.applySolution(lines, { ceiling: { x0: -3.9, x1: 3.9, z0: 2.6, z1: 9.8 }, cloudDrop: .5,
@@ -827,6 +857,7 @@
     S.person(-2.2, 6.2, { seed: 61, pose: "walk", step: 1, bag: "#2a2d30" });
     plant(-4.8, 4.2, 1.2); plant(4.8, 5.6, 1.1); plant(-4.8, 12.5, 1.1);
     S.walker(2.3, { dir: -1, speed: 1.3, seed: 55, g: "f", x: 1.5, phase: .4 });
+    S.walker(2.75, { dir: 1, speed: 1.2, seed: 70, x: -2, phase: .85 });
     S.person(4.3, 2.7, { seed: 61, anim: "idle", pose: "phone", g: "m" });
     S.person(-4.2, 2.8, { seed: 38, anim: "idle", g: "f" });
     S.applySolution(lines, { ceiling: { x0: -4.8, x1: 4.8, z0: 2.2, z1: 13.9 }, baffleH: .3, baffleDrop: .4, baffleD: 2.4,
@@ -871,6 +902,7 @@
     box(4.85, .45, 3, .12, .7, 8.5, "#6a4033", { shadow: false, tex: "fabric" });
     plant(-4.4, 3.2, 1.2);
     S.person(-1.2, 5.9, { seed: 77, pose: "walk", step: 1, top: "#f1f1ee", bottom: "#222", g: "f" });
+    S.walker(3.15, { dir: -1, speed: 1.1, seed: 81, g: "f", x: 2, phase: .6 });
     S.walker(2.7, { dir: 1, speed: 1.25, seed: 77, g: "m", top: "#f1f1ee", bottom: "#222", x: -1, phase: .2 });
     S.person(-3.8, 2.9, { seed: 90, anim: "idle", g: "f" });
     S.person(3.9, 3.0, { seed: 44, anim: "idle", g: "m" });
@@ -914,6 +946,7 @@
     box(3.15, .45, 5.55, .3, .02, .22, "#e8e2d4", { nostroke: true, shadow: false });
     plant(-4.0, 9.2, 1.4); plant(4.0, 3.0, 1.1);
     S.walker(3.4, { dir: 1, speed: 1.3, seed: 66, x: 0, phase: .5 });
+    S.walker(4.05, { dir: -1, speed: 1.15, seed: 85, g: "f", x: 1.5, phase: .9 });
     S.person(-3.4, 3.9, { seed: 52, anim: "idle", pose: "phone", g: "m" });
     S.person(3.7, 3.5, { seed: 19, anim: "idle", g: "f" });
     S.applySolution(lines, { ceiling: { x0: -3.8, x1: 3.8, z0: 2.0, z1: 9.0 },
