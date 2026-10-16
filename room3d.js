@@ -113,6 +113,10 @@
     const pt = q => { const [X, Y] = P(q[0], q[1], q[2]); return `${X.toFixed(1)},${Y.toFixed(1)}`; };
     const poly = (pts, fill, extra = "") => `<polygon points="${pts.map(pt).join(" ")}" fill="${fill}" ${extra}/>`;
     const sc = z => f / (z + cb);
+    // joint helper: the part is drawn in absolute coordinates, but animated about (px,py) using a translate wrapper,
+    // so the CSS rotation always pivots at the local origin (no reliance on transform-origin support)
+    const piv = (px, py, cls, inner, style = "") => `<g transform="translate(${px},${py})"><g class="${cls}" style="${style}"><g transform="translate(${-px},${-py})">${inner}</g></g></g>`;
+
     // layers (live mode): base = static room, prod = wall/ceiling-flush products (cross-fade), hang = hanging baffles / clouds
     const add = (key, svg, o = {}) => {
       let layer = "base";
@@ -209,7 +213,7 @@
           if (act) return `<g transform="translate(${sx},-1.5)"><g class="a-arm ${cls || ""}" style="--ox:${side > 0 ? 26 : 74}%">${inner}</g></g>`;
           return `<g transform="${base}">${inner}</g>`;
         };
-        const sw = pose === "walk" ? (o.step || 1) * 11 : 0;
+        const sw = 0;
         if (pose === "phone") {
           u += arm(-1, 2, "a-armQ");
           u += `<path d="M${.2 * sh},-1.5 L.30,-1.3 L.09,-1.66" stroke="${top}" stroke-width=".085" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx=".085" cy="-1.68" r=".034" fill="${skin}"/><rect x=".07" y="-1.74" width=".03" height=".085" rx=".008" fill="#16181b"/>`;
@@ -239,7 +243,7 @@
           if (female) hd += `<path d="M-.088,-1.69 C-.12,-1.6 -.1,-1.5 -.07,-1.48 L-.055,-1.68 Z" fill="${hair}"/><path d="M.088,-1.69 C.12,-1.6 .1,-1.5 .07,-1.48 L.055,-1.68 Z" fill="${hair}"/>`;
           if (big) hd += `<ellipse cx="-.03" cy="-1.7" rx=".0095" ry=".0065" fill="#1d1a19"/><ellipse cx=".03" cy="-1.7" rx=".0095" ry=".0065" fill="#1d1a19"/><path d="M-.022,-1.645 Q0,-1.635 .022,-1.645" stroke="rgba(120,50,45,.7)" stroke-width=".006" fill="none"/>`;
         }
-        u += act ? `<g class="a-head" style="transform-origin:0px -1.6px">${hd}</g>` : hd;
+        u += act ? piv(0, -1.6, "a-head", hd) : hd;
         return u;
       };
 
@@ -251,7 +255,7 @@
         g += lower + `<g transform="translate(0,.38)">${upper()}</g>`;
       } else {
         const hx = .09, hy = -.98;
-        const walk = pose === "walk" ? (o.step || 1) * 13 : 0;
+        const walk = 0;
         const legL = `M-.185,-.98 C-.2,-.75 -.17,-.45 -.145,-.075 L-.045,-.075 C-.04,-.45 -.035,-.75 -.005,-.98 Z`;
         const legR = `M.005,-.98 C.035,-.75 .04,-.45 .045,-.075 L.145,-.075 C.17,-.45 .2,-.75 .185,-.98 Z`;
         const shoe = (cx, a) => `<ellipse cx="${cx}" cy="-.035" rx=".072" ry=".04" fill="#1b1b1d" transform="rotate(${a},${cx},-.075)"/>`;
@@ -267,7 +271,7 @@
         if (pose === "carry" || o.bag) {
           up += `<path d="M-.2,-1.5 L-.34,-.9" stroke="#222" stroke-width=".014" fill="none"/><rect x="-.44" y="-.95" width=".2" height=".26" rx=".025" fill="${o.bag || "#6a4a35"}"/><rect x="-.44" y="-.95" width=".2" height=".26" rx=".025" fill="url(#sh-h)"/>`;
         }
-        g += act ? `<g class="a-upper" style="transform-origin:0px -.97px">${up}</g>` : up;
+        g += act ? piv(0, -.97, "a-upper", up) : up;
       }
       const flip = (r % 2 && !back) ? "scale(-1,1)" : "";
       if (act) {
@@ -295,19 +299,19 @@
       const shortS = (r % 4) === 0;
       const uarmP = shortS ? "M-.05,0 C.035,.04 .052,.16 .05,.3 L-.035,.3 C-.045,.16 -.055,.07 -.05,0 Z" : "M-.05,0 C.035,.04 .052,.16 .05,.3 L-.035,.3 C-.045,.16 -.055,.07 -.05,0 Z";
       const farmP = "M-.036,0 L.05,0 C.052,.1 .05,.2 .046,.27 L-.03,.27 Z";
-      const W = (cls, ph, inner, org) => `<g class="${cls}" style="--ph:${ph};transform-origin:${org}">${inner}</g>`;
+      const W = (cls, ph, inner) => `<g class="${cls}" style="--ph:${ph}">${inner}</g>`;
       const leg = (far, ph, ang) => {
         const bt = far ? shade(bottom, .68) : bottom, shoe = far ? "#101113" : "#1b1b1d";
-        const shin = part(shinP, bt) + (st ? "" : "") + W("w-foot", ph, `<path d="${shoeP}" fill="${shoe}"/>`, "0px .43px");
-        const knee = `<g transform="translate(0,-.52)">${W("w-shin", ph, shin, "0px 0px")}</g>`;
+        const shin = part(shinP, bt) + (st ? `<path d="${shoeP}" fill="${shoe}"/>` : piv(0, .43, "w-foot", `<path d="${shoeP}" fill="${shoe}"/>`, `--ph:${ph}`));
+        const knee = `<g transform="translate(0,-.52)">${st ? shin : W("w-shin", ph, shin)}</g>`;
         const inner = part(thighP, bt) + knee;
-        return st ? `<g style="transform:rotate(${ang}deg);transform-origin:0px -.98px">${inner}</g>` : W("w-thigh", ph, inner, "0px -.98px");
+        return st ? piv(0, -.98, "", inner, `transform:rotate(${ang}deg)`) : piv(0, -.98, "w-thigh", inner, `--ph:${ph}`);
       };
       const armSide = (far, ph, ang) => {
         const tp = far ? shade(top, .72) : top, sk = far ? shade(skin, .8) : skin;
         const fore = (shortS ? part(farmP, sk) : part(farmP, tp)) + `<ellipse cx="0.008" cy=".31" rx=".034" ry=".05" fill="${sk}"/>`;
-        const inner = part(uarmP, tp) + `<g transform="translate(0,.3)">${st ? `<g style="transform:rotate(-14deg);transform-origin:0px 0px">${fore}</g>` : W("w-farm", ph, fore, "0px 0px")}</g>`;
-        return `<g transform="translate(-.005,-1.5)">${st ? `<g style="transform:rotate(${ang}deg);transform-origin:0px 0px">${inner}</g>` : W("w-uarm", ph, inner, "0px 0px")}</g>`;
+        const inner = part(uarmP, tp) + `<g transform="translate(0,.3)">${st ? `<g style="transform:rotate(-14deg)">${fore}</g>` : W("w-farm", ph, fore)}</g>`;
+        return `<g transform="translate(-.005,-1.5)">${st ? `<g style="transform:rotate(${ang}deg)">${inner}</g>` : W("w-uarm", ph, inner)}</g>`;
       };
       const torsoP = "M-.1,-1.52 C-.14,-1.5 -.15,-1.2 -.125,-.97 L.115,-.97 C.15,-1.2 .14,-1.5 .09,-1.56 C.06,-1.6 -.05,-1.6 -.1,-1.52 Z";
       let head = part("M-.092,-1.7 C-.092,-1.8 .09,-1.8 .095,-1.7 C.098,-1.63 .06,-1.6 0,-1.6 C-.06,-1.6 -.092,-1.63 -.092,-1.7 Z", skin);
@@ -319,16 +323,17 @@
       let fig = `<ellipse cx="0" cy="0" rx=".34" ry=".09" fill="url(#shadow-r)"/>`;
       if (o.roller) fig += `<g><line x1="-.5" y1="-.62" x2="-.02" y2="-.88" stroke="#2a2d30" stroke-width=".016"/><rect x="-.66" y="-.6" width=".3" height=".52" rx=".03" fill="${o.roller}"/><rect x="-.66" y="-.6" width=".3" height=".52" rx=".03" fill="url(#sh-h)"/><circle cx="-.6" cy="-.04" r=".04" fill="#222"/><circle cx="-.42" cy="-.04" r=".04" fill="#222"/></g>`;
       fig += leg(true, .5, 14) + leg(false, 0, -14);
-      let up = armSide(true, 0, 12) + part(torsoP, top) + neck + `<g class="${st ? "" : "w-head"}" style="transform-origin:0px -1.6px">${head}</g>` + armSide(false, .5, -12);
-      fig += `<g transform="rotate(3,0,-.97)"><g class="${st ? "" : "w-sway"}" style="transform-origin:0px -.97px">${up}</g></g>`;
+      let up = armSide(true, 0, 12) + part(torsoP, top) + neck + (st ? head : piv(0, -1.6, "w-head", head)) + armSide(false, .5, -12);
+      fig += `<g transform="rotate(4,0,-.97)">${st ? up : piv(0, -.97, "w-sway", up)}</g>`;
       if (st) {
         add(z + cb + .25, `<g transform="translate(${bx.toFixed(1)},${by.toFixed(1)}) scale(${m.toFixed(2)})"><g transform="scale(${dir},1)">${fig}</g></g>`);
         return;
       }
-      const dist = VB.w + 200, T = dist / (speed * m), gp = 1.55 / speed;
+      const sp = speed * .82, dist = VB.w + 200, T = dist / (sp * m), gp = 1.9 / speed;     // an unhurried stroll
       const x0 = (dir > 0 ? -100 : VB.w + 100) - bx, x1 = (dir > 0 ? VB.w + 100 : -100) - bx;
       const dl = o.phase != null ? -o.phase * T : -rnd() * T;
-      actors.push({ key: z, svg: `<g class="act-mv" style="--x0:${x0.toFixed(1)}px;--x1:${x1.toFixed(1)}px;--T:${T.toFixed(2)}s;--dl:${dl.toFixed(2)}s;--gp:${gp.toFixed(3)}s"><g transform="translate(${bx.toFixed(1)},${by.toFixed(1)}) scale(${m.toFixed(2)})"><g transform="scale(${dir},1)"><g class="w-bob">${fig}</g></g></g></g>` });
+      const kf = `mv${id}${actors.length}`;
+      actors.push({ key: z, css: `@keyframes ${kf}{from{transform:translateX(${x0.toFixed(1)}px)}to{transform:translateX(${x1.toFixed(1)}px)}}`, svg: `<g class="act-mv" style="animation:${kf} ${T.toFixed(2)}s linear ${dl.toFixed(2)}s infinite;--gp:${gp.toFixed(3)}s"><g transform="translate(${bx.toFixed(1)},${by.toFixed(1)}) scale(${m.toFixed(2)})"><g transform="scale(${dir},1)"><g class="w-bob">${fig}</g></g></g></g>` });
     }
 
     /* ---------- furniture & props ---------- */
@@ -365,7 +370,7 @@
         g += `<path d="M${bx.toFixed(1)},${by.toFixed(1)} Q${(bx + (ex - bx) * .4).toFixed(1)},${(by - up * .9).toFixed(1)} ${ex.toFixed(1)},${ey.toFixed(1)}" stroke="#3a4a2f" stroke-width="${(.012 * m).toFixed(2)}" fill="none"/>`;
         g += `<ellipse cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" rx="${(.13 * m).toFixed(1)}" ry="${(.07 * m).toFixed(1)}" fill="${col}" transform="rotate(${(a * 57).toFixed(0)},${ex.toFixed(1)},${ey.toFixed(1)})"/><ellipse cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" rx="${(.13 * m).toFixed(1)}" ry="${(.07 * m).toFixed(1)}" fill="url(#sph)" transform="rotate(${(a * 57).toFixed(0)},${ex.toFixed(1)},${ey.toFixed(1)})"/>`;
       }
-      if (live) amb.push({ key: z, svg: `<g class="amb-leaf" style="transform-origin:${bx.toFixed(1)}px ${by.toFixed(1)}px;--ad:${(-rnd() * 6).toFixed(2)}s">${g}</g>` });
+      if (live) amb.push({ key: z, svg: piv(bx.toFixed(1), by.toFixed(1), "amb-leaf", g, `--ad:${(-rnd() * 6).toFixed(2)}s`) });
       else add(z + cb + .25, g);
     }
 
@@ -381,7 +386,7 @@
       const sh = `M${(lx - a).toFixed(1)},${ly.toFixed(1)} L${(lx + a).toFixed(1)},${ly.toFixed(1)} L${(lx + b).toFixed(1)},${(ly + hh).toFixed(1)} L${(lx - b).toFixed(1)},${(ly + hh).toFixed(1)} Z`;
       s += `<path d="${sh}" fill="${o.col || "#33383c"}"/><path d="${sh}" fill="url(#sh-h)"/>`;
       s += `<ellipse cx="${lx.toFixed(1)}" cy="${(ly + hh).toFixed(1)}" rx="${b.toFixed(1)}" ry="${(.05 * m).toFixed(1)}" fill="#fff3d6"/>`;
-      if (live) amb.push({ key: z, svg: `<g class="amb-sway" style="transform-origin:${tx.toFixed(1)}px ${ty.toFixed(1)}px;--ad:${(-rnd() * 6).toFixed(2)}s">${s}</g>` });
+      if (live) amb.push({ key: z, svg: piv(tx.toFixed(1), ty.toFixed(1), "amb-sway", s, `--ad:${(-rnd() * 6).toFixed(2)}s`) });
       else add(z + cb + .2, s);
       glow(x, y - .08, z, 1.15, .55);
     }
@@ -661,7 +666,8 @@
       const ambS = amb.sort((a, b) => b.key - a.key).map(x => x.svg).join("");
       const act = actors.sort((a, b) => b.key - a.key).map(x => x.svg).join("");
       const fp = o.focus ? P(o.focus[0], o.focus[1], o.focus[2]) : [VB.cx, VB.cy];
-      return `<div class="scene live" data-fx="${fp[0].toFixed(1)}" data-fy="${fp[1].toFixed(1)}" data-fz="${(o.focus && o.focus[3]) || 1.8}">` +
+      const kfCss = actors.map(a => a.css || "").join("");
+      return `<div class="scene live" data-fx="${fp[0].toFixed(1)}" data-fy="${fp[1].toFixed(1)}" data-fz="${(o.focus && o.focus[3]) || 1.8}"><style>${kfCss}</style>` +
         `<svg class="sc-a" ${head}><defs>${defsStr}</defs>${room(["base"])}${tail}</svg>` +
         `<svg class="sc-b" ${head}>${room(["base", "prod"])}${tail}</svg>` +
         `<svg class="sc-hang" ${head}>${objs.filter(x => x.layer === "hang").map(x => x.svg).join("")}</svg>` +
